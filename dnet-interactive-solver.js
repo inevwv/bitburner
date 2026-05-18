@@ -13,7 +13,7 @@ export async function main(ns) {
   }));
 
   for (const neighbor of neighbors) {
-    const details = ns.dnet.getServerAuthDetails(neighbor);
+    const details = ns.dnet.getServerDetails(neighbor);
     if (details.hasSession) continue;
 
     if (details.modelId === "The Labyrinth") {
