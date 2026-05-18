@@ -6,7 +6,6 @@ export async function main(ns) {
   const hostname = ns.getHostname();
   const neighbors = ns.dnet.probe();
 
-  // startup heartbeat
   ns.writePort(REPORT_PORT, JSON.stringify({
     host: hostname,
     status: "solverAlive",
@@ -18,7 +17,6 @@ export async function main(ns) {
     if (details.hasSession) continue;
 
     if (details.modelId === "The Labyrinth") {
-      // try a direction to generate maze state in logs
       await ns.dnet.authenticate(neighbor, "north");
       const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
       ns.print(`[${hostname}] labyrinth logs: ${JSON.stringify(logs)}`);
@@ -28,8 +26,7 @@ export async function main(ns) {
         target: neighbor,
         logs: logs,
       }));
-    }
-    if (details.modelId === "KingOfTheHill") {
+    } else if (details.modelId === "KingOfTheHill" && details.passwordLength > 4) {
       await solveKingOfTheHill(ns, hostname, neighbor, details);
     } else if (details.modelId === "RateMyPix.Auth") {
       await solveRateMyPix(ns, hostname, neighbor, details);
@@ -84,13 +81,14 @@ async function solveKingOfTheHill(ns, hostname, neighbor, details) {
       await ns.scp("dnet-rider.js", neighbor);
       await ns.scp("dnet-interactive-solver.js", neighbor);
       await ns.scp("dnet-stasis.js", neighbor);
+      await ns.scp("dnet-cache-opener.js", neighbor);
+      await ns.scp("dnet-deploy-rider.js", neighbor);
+      await ns.scp("dnet-storm.js", neighbor);
       ns.exec("dnet-probe.js", neighbor);
       return;
     }
 
-    // heartbleed for altitude
     const logs = await ns.dnet.heartbleed(neighbor, { peek: false });
-    ns.print(`[${hostname}] KingOfTheHill heartbleed raw: ${JSON.stringify(logs)}`);
     ns.writePort(REPORT_PORT, JSON.stringify({
       host: hostname,
       status: "solverHeartbleed",
@@ -138,7 +136,6 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
     message: `starting length ${len}`,
   }));
 
-  // get initial heartbleed for digit hints
   const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
   const knownDigits = [...new Set((logs?.data?.match(/\d/g) || []))];
   ns.print(`[${hostname}] RateMyPix known digits: ${knownDigits}`);
@@ -146,8 +143,7 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
   let bestGuess = null;
   let bestScore = -1;
   const tried = new Set();
-
-  const digitPool = knownDigits.length > 0 ? knownDigits : ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+  const digitPool = knownDigits.length > 0 ? knownDigits : ["0","1","2","3","4","5","6","7","8","9"];
 
   for (let i = 0; i < 50; i++) {
     let candidate;
@@ -157,7 +153,7 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
       arr[pos] = digitPool[Math.floor(Math.random() * digitPool.length)];
       candidate = arr.join("");
     } else {
-      candidate = Array.from({ length: len }, () =>
+      candidate = Array.from({length: len}, () =>
         digitPool[Math.floor(Math.random() * digitPool.length)]
       ).join("");
     }
@@ -193,11 +189,13 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
       await ns.scp("dnet-rider.js", neighbor);
       await ns.scp("dnet-interactive-solver.js", neighbor);
       await ns.scp("dnet-stasis.js", neighbor);
+      await ns.scp("dnet-cache-opener.js", neighbor);
+      await ns.scp("dnet-deploy-rider.js", neighbor);
+      await ns.scp("dnet-storm.js", neighbor);
       ns.exec("dnet-probe.js", neighbor);
       return;
     }
 
-    // read spice rating
     const spiceLogs = await ns.dnet.heartbleed(neighbor, { peek: false });
     ns.writePort(REPORT_PORT, JSON.stringify({
       host: hostname,
