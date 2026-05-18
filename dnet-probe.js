@@ -1,6 +1,17 @@
 const REPORT_PORT = 20;
 const RIDER_PORT = 21;
 
+// scripts to scp to every authed server
+const SCRIPTS = [
+  "dnet-probe.js",
+  "dnet-rider.js",
+  "dnet-interactive-solver.js",
+  "dnet-stasis.js",
+  "dnet-cache-opener.js",
+  "dnet-deploy-rider.js",
+  "dnet-storm.js",
+];
+
 export async function main(ns) {
   ns.disableLog("ALL");
   ns.clearLog();
@@ -16,9 +27,8 @@ export async function main(ns) {
       const details = ns.dnet.getServerAuthDetails(neighbor);
 
       if (details.hasSession) {
-        ns.print(`[${hostname}] already have session on ${neighbor}, rescanning files`);
+        ns.print(`[${hostname}] already have session on ${neighbor}, rescanning`);
         const files = ns.ls(neighbor);
-        ns.print(`[${hostname}] files on ${neighbor}: ${files.join(", ")}`);
         ns.writePort(REPORT_PORT, JSON.stringify({
           host: neighbor,
           from: hostname,
@@ -27,16 +37,27 @@ export async function main(ns) {
           files: files,
         }));
 
-        // re-exec solver on already authed servers
-        await ns.scp("dnet-interactive-solver.js", neighbor);
-        ns.exec("dnet-interactive-solver.js", neighbor, 1, [], { preventDuplicates: true });
-
+        // re-exec solver on already authed servers if RAM allows
+        const availRam = ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor);
+        if (availRam >= 7) {
+          await ns.scp("dnet-interactive-solver.js", neighbor);
+          ns.exec("dnet-interactive-solver.js", neighbor, 1, [], { preventDuplicates: true });
+        }
         continue;
       }
 
       // defer interactive models to dedicated solver
-      if (["KingOfTheHill", "RateMyPix.Auth"].includes(details.modelId)) {
+      if (["KingOfTheHill", "RateMyPix.Auth", "The Labyrinth"].includes(details.modelId)) {
         ns.print(`[${hostname}] interactive model ${details.modelId} on ${neighbor} — deferring to solver`);
+        ns.writePort(REPORT_PORT, JSON.stringify({
+          host: neighbor,
+          from: hostname,
+          status: "deferred",
+          modelId: details.modelId,
+          hint: details.passwordHint,
+          format: details.passwordFormat,
+          length: details.passwordLength,
+        }));
         continue;
       }
 
@@ -101,7 +122,6 @@ export async function main(ns) {
           const ram = ns.getServerMaxRam(neighbor);
           const files = ns.ls(neighbor);
           ns.print(`[${hostname}] freed RAM on ${neighbor}: ${ram}GB`);
-          ns.print(`[${hostname}] files on ${neighbor}: ${files.join(", ")}`);
 
           ns.writePort(REPORT_PORT, JSON.stringify({
             host: neighbor,
@@ -113,24 +133,30 @@ export async function main(ns) {
             files: files,
           }));
 
-          await ns.scp("dnet-probe.js", neighbor);
-          await ns.scp("dnet-rider.js", neighbor);
-          await ns.scp("dnet-interactive-solver.js", neighbor);
-          await ns.scp("dnet-stasis.js", neighbor);
+          // scp all scripts to new server
+          for (const script of SCRIPTS) {
+            await ns.scp(script, neighbor);
+          }
+
+          // always run probe
           ns.exec("dnet-probe.js", neighbor);
-          ns.exec("dnet-interactive-solver.js", neighbor);
+
+          // run solver if enough RAM
+          const availRam = ram - ns.getServerUsedRam(neighbor);
+          if (availRam >= 7) {
+            ns.exec("dnet-interactive-solver.js", neighbor);
+          }
+
+          // open caches on new server
+          ns.exec("dnet-cache-opener.js", neighbor);
 
           // deploy rider on first depth 4+ server only
           const depth = ns.dnet.getDepth(neighbor);
           if (depth >= 4) {
             const riderStatus = ns.peek(RIDER_PORT);
             if (riderStatus === "NULL PORT DATA") {
-              ns.print(`[${hostname}] deploying rider on ${neighbor} (depth ${depth})`);
-              ns.exec("dnet-rider.js", neighbor);
-              for (let i = 0; i < 30; i++) {
-                await ns.dnet.induceServerMigration(neighbor);
-                await ns.sleep(100);
-              }
+              ns.print(`[${hostname}] scheduling rider deployment on ${neighbor} (depth ${depth})`);
+              ns.exec("dnet-deploy-rider.js", neighbor);
               ns.writePort(RIDER_PORT, neighbor);
               ns.writePort(REPORT_PORT, JSON.stringify({
                 host: neighbor,
@@ -177,9 +203,9 @@ export async function main(ns) {
 
 async function reportFiles(ns, hostname) {
   const files = ns.ls(hostname);
+
   const readableFiles = files.filter(f =>
     (f.endsWith(".txt") || f.endsWith(".lit") || f.endsWith(".data"))
-    && !f.startsWith("loot/")
     && f !== "loot-index.txt"
   );
 
@@ -195,22 +221,7 @@ async function reportFiles(ns, hostname) {
     }));
   }
 
-  // open any caches
-  const caches = files.filter(f => f.endsWith(".cache"));
-  for (const f of caches) {
-    ns.print(`[${hostname}] opening cache: ${f}`);
-    const result = await ns.dnet.openCache(f);
-    ns.print(`[${hostname}] cache result: ${JSON.stringify(result)}`);
-    ns.writePort(REPORT_PORT, JSON.stringify({
-      host: hostname,
-      from: hostname,
-      status: "cache",
-      filename: f,
-      result: result,
-    }));
-  }
-
-  // lab recon
+  // lab recon — 0GB RAM cost
   const exes = files.filter(f => f.endsWith(".exe"));
   const radarResult = await ns.dnet.labradar();
   const reportResult = await ns.dnet.labreport();
@@ -225,23 +236,7 @@ async function reportFiles(ns, hostname) {
     report: reportResult,
   }));
 
-  // check for storm trigger
-  const STORM_PORT = 22;
-  const stormTrigger = ns.peek(STORM_PORT);
-  if (stormTrigger === "FIRE" && files.includes("STORM_SEED.exe")) {
-    ns.print(`[${hostname}] STORM TRIGGER DETECTED — unleashing storm seed!`);
-    ns.readPort(STORM_PORT);
-    const result = await ns.dnet.unleashStormSeed();
-    ns.print(`[${hostname}] storm result: ${JSON.stringify(result)}`);
-    ns.writePort(REPORT_PORT, JSON.stringify({
-      host: hostname,
-      from: hostname,
-      status: "storm",
-      result: result,
-    }));
-  }
-
-  // report neighbor auth details for recon
+  // recon neighbors
   const neighbors = ns.dnet.probe();
   for (const neighbor of neighbors) {
     const details = ns.dnet.getServerAuthDetails(neighbor);
@@ -323,7 +318,7 @@ function getPasswordCandidates(ns, details) {
         "password", "admin", "root", "default", "letmein",
         "welcome", "monkey", "dragon", "master", "passw0rd",
         "qwerty", "abc123", "iloveyou", "sunshine", "princess",
-        "master", "mustang", "michael", "superman", "qazwsx", "123qwe",
+        "mustang", "michael", "superman", "qazwsx", "123qwe",
         "computer", "michelle", "jessica", "pepper", "freedom", "maggie",
         "qwertyuiop", "1qaz2wsx", "zxcvbn",
       ];
@@ -350,7 +345,8 @@ function getPasswordCandidates(ns, details) {
       return permutations(data.split("")).map(p => p.join(""));
     }
 
-    case "Factori-Os": {
+    case "Factori-Os":
+    case "KingOfTheHill": {
       if (passwordLength <= 0 || passwordLength > 4) return [];
       const candidates = [];
       const max = Math.pow(10, passwordLength);
@@ -368,14 +364,12 @@ function getPasswordCandidates(ns, details) {
     }
 
     case "Pr0verFl0": {
-      const overflow = "A".repeat(passwordLength * 2);
-      const overflow2 = "a".repeat(passwordLength * 2);
-      const overflow3 = "\0".repeat(passwordLength * 2);
-      return [overflow, overflow2, overflow3];
+      return [
+        "A".repeat(passwordLength * 2),
+        "a".repeat(passwordLength * 2),
+        "\0".repeat(passwordLength * 2),
+      ];
     }
-
-    case "The Labyrinth":
-      return ["!!the:masterwork:of:daedalus<5547>!!"];
 
     default:
       ns.print(`Unknown model: ${modelId} | hint: ${passwordHint}`);
