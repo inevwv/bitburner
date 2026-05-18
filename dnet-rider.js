@@ -1,10 +1,10 @@
+// dnet-rider.js
 const REPORT_PORT = 20;
 
 export async function main(ns) {
   ns.disableLog("ALL");
   const hostname = ns.getHostname();
 
-  // startup heartbeat — if you see this, rider launched successfully
   ns.tprint(`[${hostname}] rider started`);
   ns.writePort(REPORT_PORT, JSON.stringify({
     host: hostname,
@@ -31,7 +31,7 @@ export async function main(ns) {
         neighbors: neighbors,
       }));
 
-      // check lab
+      // check lab functions
       const radar = await ns.dnet.labradar();
       const report = await ns.dnet.labreport();
       if (radar.success || report.success) {
@@ -44,7 +44,7 @@ export async function main(ns) {
         }));
       }
 
-      // induce migration on neighbors
+      // induce migration on all neighbors
       for (const neighbor of neighbors) {
         try {
           await ns.dnet.induceServerMigration(neighbor);
