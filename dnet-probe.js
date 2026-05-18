@@ -202,6 +202,7 @@ export async function main(ns) {
 }
 
 async function reportFiles(ns, hostname) {
+  if (!ns.dnet.isDarknetServer(hostname)) return;
   const files = ns.ls(hostname);
 
   const readableFiles = files.filter(f =>
