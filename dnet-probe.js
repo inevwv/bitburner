@@ -24,7 +24,7 @@ export async function main(ns) {
 
   for (const neighbor of neighbors) {
     try {
-      const details = ns.dnet.getServerAuthDetails(neighbor);
+      const details = ns.dnet.getServerDetails(neighbor);
 
       if (details.hasSession) {
         ns.print(`[${hostname}] already have session on ${neighbor}, rescanning`);
@@ -240,7 +240,7 @@ async function reportFiles(ns, hostname) {
   // recon neighbors
   const neighbors = ns.dnet.probe();
   for (const neighbor of neighbors) {
-    const details = ns.dnet.getServerAuthDetails(neighbor);
+    const details = ns.dnet.getServerDetails(neighbor);
 
     // special case — plant stasis on th3_l4byr1nth the moment we see it
     if (neighbor === "th3_l4byr1nth") {
