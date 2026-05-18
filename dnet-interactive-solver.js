@@ -16,21 +16,74 @@ export async function main(ns) {
     const details = ns.dnet.getServerDetails(neighbor);
     if (details.hasSession) continue;
 
-    if (details.modelId === "The Labyrinth") {
-      await ns.dnet.authenticate(neighbor, "north");
-      const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
-      ns.print(`[${hostname}] labyrinth logs: ${JSON.stringify(logs)}`);
-      ns.writePort(REPORT_PORT, JSON.stringify({
-        host: hostname,
-        status: "labyrinthLogs",
-        target: neighbor,
-        logs: logs,
-      }));
+      if (details.modelId === "The Labyrinth") {
+      await solveLabyrinth(ns, hostname, neighbor);
     } else if (details.modelId === "KingOfTheHill" && details.passwordLength > 4) {
       await solveKingOfTheHill(ns, hostname, neighbor, details);
     } else if (details.modelId === "RateMyPix.Auth") {
       await solveRateMyPix(ns, hostname, neighbor, details);
     }
+  }
+}
+
+async function solveLabyrinth(ns, hostname, neighbor) {
+  ns.print(`[${hostname}] solving labyrinth on ${neighbor}`);
+  
+  // BFS using report coords to track position
+  const visited = new Set();
+  const directions = ["north", "east", "south", "west"];
+  
+  while (true) {
+    const report = await ns.dnet.labreport();
+    if (!report.success) break;
+    
+    const pos = `${report.coords[0]},${report.coords[1]}`;
+    visited.add(pos);
+    
+    ns.print(`[${hostname}] at ${pos} | n:${report.north} e:${report.east} s:${report.south} w:${report.west}`);
+
+    // pick first available unvisited direction
+    const available = directions.filter(d => report[d]);
+    const next = available.find(d => {
+      const newPos = move(report.coords, d);
+      return !visited.has(`${newPos[0]},${newPos[1]}`);
+    }) || available[0]; // backtrack if all visited
+
+    if (!next) break;
+
+    const result = await ns.dnet.authenticate(neighbor, next);
+    if (result.success) {
+      ns.print(`[${hostname}] labyrinth solved!`);
+      await ns.dnet.memoryReallocation(neighbor);
+      const ram = ns.getServerMaxRam(neighbor);
+      const files = ns.ls(neighbor);
+      ns.writePort(REPORT_PORT, JSON.stringify({
+        host: neighbor,
+        from: hostname,
+        status: "authenticated",
+        depth: ns.dnet.getDepth(neighbor),
+        password: "maze",
+        ram: ram,
+        files: files,
+      }));
+      await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
+        "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
+        .map(s => ns.scp(s, neighbor)));
+      ns.exec("dnet-probe.js", neighbor);
+      return;
+    }
+  }
+
+  ns.print(`[${hostname}] labyrinth failed`);
+}
+
+function move(coords, direction) {
+  const [x, y] = coords;
+  switch (direction) {
+    case "north": return [x, y - 1];
+    case "south": return [x, y + 1];
+    case "east":  return [x + 1, y];
+    case "west":  return [x - 1, y];
   }
 }
 
