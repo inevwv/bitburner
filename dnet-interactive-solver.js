@@ -27,8 +27,13 @@ export async function main(ns) {
 }
 
 async function solveLabyrinth(ns, hostname, neighbor) {
-  ns.print(`[${hostname}] solving labyrinth on ${neighbor}`);
-  
+  const log = async (msg) => {
+    ns.print(msg);
+    await ns.write("labyrinth-log.txt", `${new Date().toISOString()} ${msg}\n`, "a");
+  };
+
+  await log(`[${hostname}] solving labyrinth on ${neighbor}`);
+} 
   // BFS using report coords to track position
   const visited = new Set();
   const directions = ["north", "east", "south", "west"];
