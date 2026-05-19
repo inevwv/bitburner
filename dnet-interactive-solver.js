@@ -33,32 +33,31 @@ async function solveLabyrinth(ns, hostname, neighbor) {
   };
 
   await log(`[${hostname}] solving labyrinth on ${neighbor}`);
-} 
+
   // BFS using report coords to track position
   const visited = new Set();
   const directions = ["north", "east", "south", "west"];
-  
+
   while (true) {
     const report = await ns.dnet.labreport();
     if (!report.success) break;
-    
+
     const pos = `${report.coords[0]},${report.coords[1]}`;
     visited.add(pos);
-    
-    ns.print(`[${hostname}] at ${pos} | n:${report.north} e:${report.east} s:${report.south} w:${report.west}`);
 
-    // pick first available unvisited direction
+    await log(`[${hostname}] at ${pos} | n:${report.north} e:${report.east} s:${report.south} w:${report.west}`);
+
     const available = directions.filter(d => report[d]);
     const next = available.find(d => {
       const newPos = move(report.coords, d);
       return !visited.has(`${newPos[0]},${newPos[1]}`);
-    }) || available[0]; // backtrack if all visited
+    }) || available[0];
 
     if (!next) break;
 
     const result = await ns.dnet.authenticate(neighbor, next);
     if (result.success) {
-      ns.print(`[${hostname}] labyrinth solved!`);
+      await log(`[${hostname}] labyrinth solved!`);
       await ns.dnet.memoryReallocation(neighbor);
       const ram = ns.getServerMaxRam(neighbor);
       const files = ns.ls(neighbor);
@@ -79,7 +78,7 @@ async function solveLabyrinth(ns, hostname, neighbor) {
     }
   }
 
-  ns.print(`[${hostname}] labyrinth failed`);
+  await log(`[${hostname}] labyrinth failed`);
 }
 
 function move(coords, direction) {
