@@ -39,9 +39,13 @@ export async function main(ns) {
 
         // re-exec solver on already authed servers if RAM allows
         const availRam = ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor);
+        ns.print(`[${hostname}] ${neighbor} availRam: ${availRam}GB`);
         if (availRam >= 7) {
+          ns.print(`[${hostname}] exec'ing solver on ${neighbor}`);
           await ns.scp("dnet-interactive-solver.js", neighbor);
           ns.exec("dnet-interactive-solver.js", neighbor, 1, [], { preventDuplicates: true });
+        } else {
+          ns.print(`[${hostname}] not enough RAM on ${neighbor} for solver`);
         }
         continue;
       }
