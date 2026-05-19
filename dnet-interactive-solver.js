@@ -4,25 +4,32 @@ const REPORT_PORT = 20;
 export async function main(ns) {
   ns.disableLog("ALL");
   const hostname = ns.getHostname();
-  const neighbors = ns.dnet.probe();
 
-  ns.writePort(REPORT_PORT, JSON.stringify({
-    host: hostname,
-    status: "solverAlive",
-    neighbors: neighbors,
-  }));
+  ns.tprint(`[${hostname}] solver started`);
 
-  for (const neighbor of neighbors) {
-    const details = ns.dnet.getServerDetails(neighbor);
-    if (details.hasSession) continue;
+  while (true) {
+    const neighbors = ns.dnet.probe();
+
+    ns.writePort(REPORT_PORT, JSON.stringify({
+      host: hostname,
+      status: "solverAlive",
+      neighbors: neighbors,
+    }));
+
+    for (const neighbor of neighbors) {
+      const details = ns.dnet.getServerDetails(neighbor);
+      if (details.hasSession) continue;
 
       if (details.modelId === "The Labyrinth") {
-      await solveLabyrinth(ns, hostname, neighbor);
-    } else if (details.modelId === "KingOfTheHill" && details.passwordLength > 4) {
-      await solveKingOfTheHill(ns, hostname, neighbor, details);
-    } else if (details.modelId === "RateMyPix.Auth") {
-      await solveRateMyPix(ns, hostname, neighbor, details);
+        await solveLabyrinth(ns, hostname, neighbor);
+      } else if (details.modelId === "KingOfTheHill" && details.passwordLength > 4) {
+        await solveKingOfTheHill(ns, hostname, neighbor, details);
+      } else if (details.modelId === "RateMyPix.Auth") {
+        await solveRateMyPix(ns, hostname, neighbor, details);
+      }
     }
+
+    await ns.dnet.nextMutation();
   }
 }
 
@@ -34,7 +41,6 @@ async function solveLabyrinth(ns, hostname, neighbor) {
 
   await log(`[${hostname}] solving labyrinth on ${neighbor}`);
 
-  // BFS using report coords to track position
   const visited = new Set();
   const directions = ["north", "east", "south", "west"];
 
@@ -134,13 +140,9 @@ async function solveKingOfTheHill(ns, hostname, neighbor, details) {
         ram: ram,
         files: files,
       }));
-      await ns.scp("dnet-probe.js", neighbor);
-      await ns.scp("dnet-rider.js", neighbor);
-      await ns.scp("dnet-interactive-solver.js", neighbor);
-      await ns.scp("dnet-stasis.js", neighbor);
-      await ns.scp("dnet-cache-opener.js", neighbor);
-      await ns.scp("dnet-deploy-rider.js", neighbor);
-      await ns.scp("dnet-storm.js", neighbor);
+      await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
+        "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
+        .map(s => ns.scp(s, neighbor)));
       ns.exec("dnet-probe.js", neighbor);
       return;
     }
@@ -242,13 +244,9 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
         ram: ram,
         files: files,
       }));
-      await ns.scp("dnet-probe.js", neighbor);
-      await ns.scp("dnet-rider.js", neighbor);
-      await ns.scp("dnet-interactive-solver.js", neighbor);
-      await ns.scp("dnet-stasis.js", neighbor);
-      await ns.scp("dnet-cache-opener.js", neighbor);
-      await ns.scp("dnet-deploy-rider.js", neighbor);
-      await ns.scp("dnet-storm.js", neighbor);
+      await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
+        "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
+        .map(s => ns.scp(s, neighbor)));
       ns.exec("dnet-probe.js", neighbor);
       return;
     }
