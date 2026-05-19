@@ -18,6 +18,7 @@ export async function main(ns) {
 
     for (const neighbor of neighbors) {
       const details = ns.dnet.getServerDetails(neighbor);
+      ns.print(`[${hostname}] checking ${neighbor} | model: ${details.modelId} | hasSession: ${details.hasSession}`);
       if (details.hasSession) continue;
 
       if (details.modelId === "The Labyrinth") {
