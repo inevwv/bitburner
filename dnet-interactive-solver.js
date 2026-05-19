@@ -61,8 +61,7 @@ async function solveLabyrinth(ns, hostname, neighbor) {
 
     if (!next) break;
 
-    const result = await ns.dnet.authenticate(neighbor, next);
-    if (result.success) {
+    const result = await ns.dnet.authenticate(neighbor, `go ${next}`);    if (result.success) {
       await log(`[${hostname}] labyrinth solved!`);
       await ns.dnet.memoryReallocation(neighbor);
       const ram = ns.getServerMaxRam(neighbor);
