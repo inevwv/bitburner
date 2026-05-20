@@ -5,7 +5,7 @@ export async function main(ns) {
   ns.disableLog("ALL");
   const hostname = ns.getHostname();
 
-  ns.tprint(`[${hostname}] solver started`);
+  ns.print(`[${hostname}] solver started`);
 
   while (true) {
     const neighbors = ns.dnet.probe();
