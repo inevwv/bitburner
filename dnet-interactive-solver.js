@@ -43,27 +43,47 @@ async function solveLabyrinth(ns, hostname, neighbor) {
   await log(`[${hostname}] solving labyrinth on ${neighbor}`);
 
   const visited = new Set();
+  const path = []; // stack for backtracking
+  const opposite = { north: "south", south: "north", east: "west", west: "east" };
   const directions = ["north", "east", "south", "west"];
 
   while (true) {
     const report = await ns.dnet.labreport();
-    if (!report.success) break;
+    if (!report.success) {
+      await log(`[${hostname}] labreport failed, aborting`);
+      break;
+    }
 
     const pos = `${report.coords[0]},${report.coords[1]}`;
     visited.add(pos);
-
     await log(`[${hostname}] at ${pos} | n:${report.north} e:${report.east} s:${report.south} w:${report.west}`);
 
-    const available = directions.filter(d => report[d]);
-    const next = available.find(d => {
+    // find an unvisited direction
+    const next = directions.find(d => {
+      if (!report[d]) return false;
       const newPos = move(report.coords, d);
       return !visited.has(`${newPos[0]},${newPos[1]}`);
-    }) || available[0];
+    });
 
-    if (!next) break;
+    let direction;
+    if (next) {
+      // move forward
+      path.push(next);
+      direction = next;
+    } else if (path.length > 0) {
+      // backtrack
+      const last = path.pop();
+      direction = opposite[last];
+      await log(`[${hostname}] backtracking via ${direction}`);
+    } else {
+      // no moves and empty stack — maze fully explored, no exit found
+      await log(`[${hostname}] maze exhausted, no exit found`);
+      break;
+    }
 
-    const result = await ns.dnet.authenticate(neighbor, `go ${next}`);    if (result.success) {
-      await log(`[${hostname}] labyrinth solved!`);
+    const result = await ns.dnet.authenticate(neighbor, `go ${direction}`);
+    if (result.success) {
+      await log(`[${hostname}] labyrinth solved! path length: ${path.length}`);
       await ns.dnet.memoryReallocation(neighbor);
       const ram = ns.getServerMaxRam(neighbor);
       const files = ns.ls(neighbor);
@@ -86,7 +106,6 @@ async function solveLabyrinth(ns, hostname, neighbor) {
 
   await log(`[${hostname}] labyrinth failed`);
 }
-
 function move(coords, direction) {
   const [x, y] = coords;
   switch (direction) {
