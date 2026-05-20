@@ -21,7 +21,7 @@ export async function main(ns) {
       ns.print(`[${hostname}] checking ${neighbor} | model: ${details.modelId} | hasSession: ${details.hasSession}`);
       if (details.hasSession) continue;
 
-      if (details.modelId === "The Labyrinth") {
+      if (details.modelId === "The Labyrinth" || details.modelId === "(The Labyrinth)") {
         await solveLabyrinth(ns, hostname, neighbor);
       } else if (details.modelId === "KingOfTheHill" && details.passwordLength > 4) {
         await solveKingOfTheHill(ns, hostname, neighbor, details);
