@@ -42,48 +42,47 @@ async function solveLabyrinth(ns, hostname, neighbor) {
 
   await log(`[${hostname}] solving labyrinth on ${neighbor}`);
 
-  const visited = new Set();
-  const path = []; // stack for backtracking
+  const marks = {}; // passage marks: "x,y->dir" = count
   const opposite = { north: "south", south: "north", east: "west", west: "east" };
   const directions = ["north", "east", "south", "west"];
 
+  const mark = (pos, dir) => {
+    const key = `${pos}->${dir}`;
+    marks[key] = (marks[key] || 0) + 1;
+    return marks[key];
+  };
+
+  const getMarks = (pos, dir) => marks[`${pos}->${dir}`] || 0;
+
   while (true) {
     const report = await ns.dnet.labreport();
-    if (!report.success) {
-      await log(`[${hostname}] labreport failed, aborting`);
-      break;
-    }
+    if (!report.success) { await log(`labreport failed`); break; }
 
     const pos = `${report.coords[0]},${report.coords[1]}`;
-    visited.add(pos);
     await log(`[${hostname}] at ${pos} | n:${report.north} e:${report.east} s:${report.south} w:${report.west}`);
 
-    // find an unvisited direction
-    const next = directions.find(d => {
-      if (!report[d]) return false;
-      const newPos = move(report.coords, d);
-      return !visited.has(`${newPos[0]},${newPos[1]}`);
-    });
+    const available = directions.filter(d => report[d]);
 
-    let direction;
-    if (next) {
-      // move forward
-      path.push(next);
-      direction = next;
-    } else if (path.length > 0) {
-      // backtrack
-      const last = path.pop();
-      direction = opposite[last];
-      await log(`[${hostname}] backtracking via ${direction}`);
-    } else {
-      // no moves and empty stack — maze fully explored, no exit found
-      await log(`[${hostname}] maze exhausted, no exit found`);
+    // Tremaux: prefer unmarked passages, then once-marked, never twice-marked
+    let next = available.find(d => getMarks(pos, d) === 0);
+
+    if (!next) {
+      // no unmarked — take least marked that isn't twice marked
+      next = available
+        .filter(d => getMarks(pos, d) < 2)
+        .sort((a, b) => getMarks(pos, a) - getMarks(pos, b))[0];
+    }
+
+    if (!next) {
+      await log(`[${hostname}] all passages twice marked — dead end, maze unsolvable`);
       break;
     }
 
-    const result = await ns.dnet.authenticate(neighbor, `go ${direction}`);
+    mark(pos, next);
+
+    const result = await ns.dnet.authenticate(neighbor, `go ${next}`);
     if (result.success) {
-      await log(`[${hostname}] labyrinth solved! path length: ${path.length}`);
+      await log(`[${hostname}] labyrinth solved!`);
       await ns.dnet.memoryReallocation(neighbor);
       const ram = ns.getServerMaxRam(neighbor);
       const files = ns.ls(neighbor);
@@ -101,6 +100,13 @@ async function solveLabyrinth(ns, hostname, neighbor) {
         .map(s => ns.scp(s, neighbor)));
       ns.exec("dnet-probe.js", neighbor);
       return;
+    }
+
+    // mark the arrival side too
+    const newReport = await ns.dnet.labreport();
+    if (newReport.success) {
+      const newPos = `${newReport.coords[0]},${newReport.coords[1]}`;
+      mark(newPos, opposite[next]);
     }
   }
 
