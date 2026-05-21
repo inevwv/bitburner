@@ -98,7 +98,10 @@ export async function main(ns) {
         ns.print(`❌ solver failed on ${report.host} → ${report.target} (${report.modelId}): ${report.message}`);
       } else if (report.status === "labyrinthLogs") {
         ns.print(`🌀 labyrinth logs from ${report.host}: ${JSON.stringify(report.logs)}`);
+      } else if (report.status === "airgapCrossed") {
+        ns.print(`🌉 AIRGAP CROSSED — ${report.host} at depth ${report.depth}`);
       }
+    
 
       await save();
 
