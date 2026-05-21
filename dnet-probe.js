@@ -361,6 +361,44 @@ function getPasswordCandidates(ns, details) {
       return [decrypted];
     }
     
+    case "MathML": {
+      if (!data) return [];
+      try {
+        const expr = data
+          .replace(/➕/g, "+")
+          .replace(/➖/g, "-")
+          .replace(/✖️/g, "*")
+          .replace(/✖/g, "*")
+          .replace(/➗/g, "/")
+          .replace(/÷/g, "/")
+          .replace(/×/g, "*")
+          .replace(/\bx\b/g, "*")
+          .replace(/\bX\b/g, "*");
+    
+        const result = Function(`"use strict"; return (${expr})`)();
+        const candidates = new Set();
+    
+        // decimal point counts as a character — slice to passwordLength
+        const withDot = String(result).slice(0, passwordLength);
+        candidates.add(withDot);
+    
+        // decimal point doesn't count — get passwordLength digits then reinsert dot
+        const raw = String(result);
+        const dotIndex = raw.indexOf(".");
+        if (dotIndex !== -1) {
+          const digits = raw.replace(".", "").slice(0, passwordLength);
+          candidates.add(digits.slice(0, dotIndex) + "." + digits.slice(dotIndex));
+        } else {
+          candidates.add(raw.slice(0, passwordLength));
+        }
+    
+        return [...candidates];
+      } catch (e) {
+        ns.print(`MathML eval failed: ${e.message}`);
+        return [];
+      }
+    }
+        
     case "PHP 5.4": {
       if (!data) return [];
       return permutations(data.split("")).map(p => p.join(""));
