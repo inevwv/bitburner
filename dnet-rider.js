@@ -20,6 +20,19 @@ export async function main(ns) {
         ns.tprint(`[${hostname}] server went offline, rider terminating`);
         return;
       }
+      // if we've crossed the airgap, stasis link ourselves
+      if (depth >= 8) {
+        const linked = ns.dnet.getStasisLinkedServers();
+        if (!linked.includes(hostname) && linked.length < ns.dnet.getStasisLinkLimit()) {
+          ns.dnet.setStasisLink(true);
+          ns.tprint(`[${hostname}] CROSSED AIRGAP at depth ${depth} — stasis link set!`);
+          ns.writePort(REPORT_PORT, JSON.stringify({
+            host: hostname,
+            status: "airgapCrossed",
+            depth: depth,
+          }));
+        }
+      }
 
       const neighbors = ns.dnet.probe();
       ns.tprint(`[${hostname}] depth:${depth} neighbors:${neighbors.length}`);
