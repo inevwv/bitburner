@@ -345,6 +345,19 @@ function getPasswordCandidates(ns, details) {
       return [decimal.toString(toBase)];
     }
 
+    case "OrdoXenos": {
+      const match = passwordHint.match(/XOR mask encrypted password: "(.+)"/);
+      if (!match) return [];
+      const encrypted = match[1];
+      const binaryValues = data.split(" ").filter(b => /^[01]+$/.test(b));
+      if (binaryValues.length !== encrypted.length) return [];
+      const decrypted = encrypted.split("").map((char, i) => {
+        const xorVal = parseInt(binaryValues[i], 2);
+        return String.fromCharCode(char.charCodeAt(0) ^ xorVal);
+      }).join("");
+      return [decrypted];
+    }
+    
     case "PHP 5.4": {
       if (!data) return [];
       return permutations(data.split("")).map(p => p.join(""));
