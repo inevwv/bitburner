@@ -313,6 +313,26 @@ function getPasswordCandidates(ns, details) {
       return candidates;
     }
 
+    case "EuroZone Free": {
+      const eurozone = [
+        "Austria", "Belgium", "Croatia", "Cyprus", "Czech Republic",
+        "Denmark", "Estonia", "Finland", "France", "Germany",
+        "Greece", "Hungary", "Ireland", "Italy", "Latvia",
+        "Lithuania", "Luxembourg", "Malta", "Netherlands", "Poland",
+        "Portugal", "Romania", "Slovakia", "Slovenia", "Spain",
+        "Sweden", "Bulgaria",
+      ];
+      const candidates = [];
+      for (const country of eurozone) {
+        if (country.length === passwordLength) {
+          candidates.push(country);
+          candidates.push(country.toLowerCase());
+          candidates.push(country.toUpperCase());
+        }
+      }
+      return candidates;
+    }
+    
     case "FreshInstall_1.0": {
       if (passwordFormat === "numeric") {
         const candidates = new Set();
