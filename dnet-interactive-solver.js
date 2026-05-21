@@ -29,6 +29,8 @@ export async function main(ns) {
         await solveRateMyPix(ns, hostname, neighbor, details);
       } else if (details.modelId === "BellaCuore") {
         await solveBellaCuore(ns, hostname, neighbor, details);
+      } else if (details.modelId === "2G_cellular") {
+        await solve2GCellular(ns, hostname, neighbor, details);
       }
     }
 
@@ -343,4 +345,55 @@ async function solveBellaCuore(ns, hostname, neighbor, details) {
   }
 
   ns.print(`[${hostname}] BellaCuore failed`);
+}
+
+async function solve2GCellular(ns, hostname, neighbor, details) {
+  const len = details.passwordLength;
+  ns.print(`[${hostname}] 2G_cellular timing attack on ${neighbor} length ${len}`);
+
+  let known = "";
+
+  for (let pos = 0; pos < len; pos++) {
+    let bestDigit = "0";
+    let bestTime = -1;
+
+    for (let d = 0; d <= 9; d++) {
+      const guess = known + String(d).repeat(len - pos);
+      await ns.dnet.authenticate(neighbor, guess);
+      const logs = await ns.dnet.heartbleed(neighbor, { peek: false });
+      const timeMatch = logs?.data?.match(/Response time: (\d+)ms/);
+      const time = timeMatch ? parseInt(timeMatch[1]) : 0;
+      ns.print(`[${hostname}] pos ${pos} digit ${d} time: ${time}ms`);
+
+      if (time > bestTime) {
+        bestTime = time;
+        bestDigit = String(d);
+      }
+    }
+
+    known += bestDigit;
+    ns.print(`[${hostname}] position ${pos} = ${bestDigit}, known so far: ${known}`);
+  }
+
+  // try the full password
+  const result = await ns.dnet.authenticate(neighbor, known);
+  if (result.success) {
+    ns.print(`[${hostname}] 2G_cellular solved: ${known}`);
+    await ns.dnet.memoryReallocation(neighbor);
+    const ram = ns.getServerMaxRam(neighbor);
+    const files = ns.ls(neighbor);
+    ns.writePort(REPORT_PORT, JSON.stringify({
+      host: neighbor,
+      from: hostname,
+      status: "authenticated",
+      depth: ns.dnet.getDepth(neighbor),
+      password: known,
+      ram: ram,
+      files: files,
+    }));
+    await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
+      "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
+      .map(s => ns.scp(s, neighbor)));
+    ns.exec("dnet-probe.js", neighbor);
+  }
 }
