@@ -358,6 +358,13 @@ function getPasswordCandidates(ns, details) {
       return [digits, digits.split("").reverse().join("")];
     }
 
+    case "110100100": {
+      if (!data) return [];
+      const bytes = data.trim().split(/\s+/);
+      const password = bytes.map(b => String.fromCharCode(parseInt(b, 2))).join("");
+      return [password];
+    }
+    
     case "OctantVoxel": {
       const match = passwordHint.match(/base (\d+) number (\w+) in base (\d+)/);
       if (!match) return [];
