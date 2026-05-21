@@ -27,6 +27,8 @@ export async function main(ns) {
         await solveKingOfTheHill(ns, hostname, neighbor, details);
       } else if (details.modelId === "RateMyPix.Auth") {
         await solveRateMyPix(ns, hostname, neighbor, details);
+      } else if (details.modelId === "BellaCuore") {
+        await solveBellaCuore(ns, hostname, neighbor, details);
       }
     }
 
@@ -305,4 +307,40 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
     modelId: "RateMyPix.Auth",
     message: "exceeded attempt limit",
   }));
+}
+
+async function solveBellaCuore(ns, hostname, neighbor, details) {
+  const match = details.passwordHint.match(/between '(\w+)' and '(\w+)'/);
+  if (!match) return;
+
+  let lo = romanToInt(match[1]) || 0; // nulla = 0
+  let hi = romanToInt(match[2]);
+
+  ns.print(`[${hostname}] BellaCuore binary search ${lo}-${hi}`);
+
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const guess = String(mid);
+
+    const result = await ns.dnet.authenticate(neighbor, guess);
+    if (result.success) {
+      ns.print(`[${hostname}] BellaCuore solved: ${guess}`);
+      // ... standard post-auth block
+      return;
+    }
+
+    const logs = await ns.dnet.heartbleed(neighbor, { peek: false });
+    const feedback = logs?.data || "";
+    ns.print(`[${hostname}] BellaCuore guess ${guess} feedback: ${feedback}`);
+
+    if (feedback.includes("ALTUS NIMIS")) {
+      hi = mid - 1;
+    } else if (feedback.includes("PARUM BREVIS")) {
+      lo = mid + 1;
+    } else {
+      lo = mid + 1; // unknown feedback, just advance
+    }
+  }
+
+  ns.print(`[${hostname}] BellaCuore failed`);
 }
