@@ -298,6 +298,9 @@ function getPasswordCandidates(ns, details) {
     }
 
     case "BellaCuore": {
+      // range variant — defer to interactive solver
+      if (passwordHint.includes("between")) return [];
+      // original single roman numeral variant
       const match = passwordHint.match(/[A-Z]+/);
       if (!match) return [];
       return [String(romanToInt(match[0]))];
