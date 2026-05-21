@@ -98,6 +98,7 @@ async function solveLabyrinth(ns, hostname, neighbor) {
       await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
         "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
         .map(s => ns.scp(s, neighbor)));
+      ns.exec("dnet-cache-opener.js", neighbor);
       ns.exec("dnet-probe.js", neighbor);
       return;
     }
