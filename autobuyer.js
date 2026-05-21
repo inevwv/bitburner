@@ -1,7 +1,7 @@
 export async function main(ns) {
   ns.disableLog("ALL");
   const maxServers = ns.cloud.getServerLimit();
-  const targetRam = 8; // 8GB to start, we'll upgrade later
+  const targetRam = 1024; // 8GB to start, we'll upgrade later
   const moneyBuffer = 0.1; // keep 10% of money in reserve
 
   while (true) {
