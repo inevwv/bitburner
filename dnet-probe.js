@@ -17,192 +17,190 @@ export async function main(ns) {
   ns.clearLog();
 
   const hostname = ns.getHostname();
-  await reportFiles(ns, hostname);
-  const neighbors = ns.dnet.probe();
 
-  ns.print(`[${hostname}] found ${neighbors.length} neighbors`);
+  while (true) {
+    await reportFiles(ns, hostname);
+    const neighbors = ns.dnet.probe();
 
-  for (const neighbor of neighbors) {
-    try {
-      const details = ns.dnet.getServerDetails(neighbor);
+    ns.print(`[${hostname}] found ${neighbors.length} neighbors`);
 
-      if (details.hasSession) {
-        ns.print(`[${hostname}] already have session on ${neighbor}, rescanning`);
-        const files = ns.ls(neighbor);
-        ns.writePort(REPORT_PORT, JSON.stringify({
-          host: neighbor,
-          from: hostname,
-          status: "authenticated",
-          depth: ns.dnet.getDepth(neighbor),
-          files: files,
-        }));
+    for (const neighbor of neighbors) {
+      try {
+        const details = ns.dnet.getServerDetails(neighbor);
 
-        // re-exec solver on already authed servers if RAM allows
-        const availRam = ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor);
-        ns.print(`[${hostname}] ${neighbor} availRam: ${availRam}GB`);
-        if (availRam >= 7) {
-          ns.print(`[${hostname}] exec'ing solver on ${neighbor}`);
-          await ns.scp("dnet-interactive-solver.js", neighbor);
-          ns.exec("dnet-interactive-solver.js", neighbor, 1, [], { preventDuplicates: true });
-        } else {
-          ns.print(`[${hostname}] not enough RAM on ${neighbor} for solver`);
-        }
-        continue;
-      }
-
-      // defer interactive models to dedicated solver
-      if (["KingOfTheHill", "RateMyPix.Auth", "The Labyrinth", "2G_cellular"].includes(details.modelId)) {
-        ns.print(`[${hostname}] interactive model ${details.modelId} on ${neighbor} — deferring to solver`);
-        ns.writePort(REPORT_PORT, JSON.stringify({
-          host: neighbor,
-          from: hostname,
-          status: "deferred",
-          modelId: details.modelId,
-          hint: details.passwordHint,
-          format: details.passwordFormat,
-          length: details.passwordLength,
-        }));
-        continue;
-      }
-
-      // heartbleed for models that need log data
-      if (["OpenWebAccessPoint", "DeepGreen", "NIL"].includes(details.modelId)) {
-        const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
-        ns.print(`[${hostname}] heartbleed ${neighbor}: ${JSON.stringify(logs)}`);
-
-        if (details.modelId === "OpenWebAccessPoint") {
-          const matches = logs?.data?.match(/\d+/g) || [];
-          details._heartbleedCandidates = [...new Set(
-            matches.filter(m => m.length === details.passwordLength)
-          )];
-        } else if (details.modelId === "DeepGreen" || details.modelId === "NIL") {
-          const allDigits = [...new Set((logs?.data?.match(/\d/g) || []))];
-          ns.print(`[${hostname}] ${details.modelId} known digits: ${allDigits}`);
-          const candidates = [];
-          const total = Math.pow(allDigits.length, details.passwordLength);
-          for (let i = 0; i < total; i++) {
-            let pwd = "";
-            let n = i;
-            for (let j = 0; j < details.passwordLength; j++) {
-              pwd += allDigits[n % allDigits.length];
-              n = Math.floor(n / allDigits.length);
-            }
-            candidates.push(pwd);
-          }
-          details._heartbleedCandidates = [...new Set(candidates)];
-        }
-
-        ns.print(`[${hostname}] heartbleed candidates for ${neighbor}: ${details._heartbleedCandidates?.length ?? 0} total`);
-      }
-
-      const passwords = getPasswordCandidates(ns, details);
-
-      if (passwords.length === 0) {
-        ns.print(`[${hostname}] can't solve ${neighbor} (${details.modelId})`);
-        ns.writePort(REPORT_PORT, JSON.stringify({
-          host: neighbor,
-          from: hostname,
-          status: "unsolvable",
-          modelId: details.modelId,
-          hint: details.passwordHint,
-          data: details.data,
-          format: details.passwordFormat,
-          length: details.passwordLength,
-        }));
-        continue;
-      }
-
-      let authenticated = false;
-
-      for (const password of passwords) {
-        ns.print(`[${hostname}] trying ${neighbor} with: ${password}`);
-        const result = await ns.dnet.authenticate(neighbor, password);
-        ns.print(`[${hostname}] ${neighbor}: ${result.success} — ${result.message}`);
-
-        if (result.success) {
-          authenticated = true;
-
-          await ns.dnet.memoryReallocation(neighbor);
-          const ram = ns.getServerMaxRam(neighbor);
+        if (details.hasSession) {
+          ns.print(`[${hostname}] already have session on ${neighbor}, rescanning`);
           const files = ns.ls(neighbor);
-          ns.print(`[${hostname}] freed RAM on ${neighbor}: ${ram}GB`);
-
           ns.writePort(REPORT_PORT, JSON.stringify({
             host: neighbor,
             from: hostname,
             status: "authenticated",
             depth: ns.dnet.getDepth(neighbor),
-            password: password,
-            ram: ram,
             files: files,
           }));
 
-          // scp all scripts to new server
-          for (const script of SCRIPTS) {
-            await ns.scp(script, neighbor);
-          }
-
-          // always run probe
-          ns.exec("dnet-probe.js", neighbor);
-
-          // run solver if enough RAM
-          const availRam = ram - ns.getServerUsedRam(neighbor);
+          const availRam = ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor);
+          ns.print(`[${hostname}] ${neighbor} availRam: ${availRam}GB`);
           if (availRam >= 7) {
-            ns.exec("dnet-interactive-solver.js", neighbor);
+            ns.print(`[${hostname}] exec'ing solver on ${neighbor}`);
+            await ns.scp("dnet-interactive-solver.js", neighbor);
+            ns.exec("dnet-interactive-solver.js", neighbor, 1, [], { preventDuplicates: true });
+          } else {
+            ns.print(`[${hostname}] not enough RAM on ${neighbor} for solver`);
           }
-
-          // open caches on new server
-          ns.exec("dnet-cache-opener.js", neighbor);
-
-          // deploy rider on first depth 4+ server only
-          const depth = ns.dnet.getDepth(neighbor);
-          if (depth >= 4) {
-            const riderStatus = ns.peek(RIDER_PORT);
-            if (riderStatus === "NULL PORT DATA") {
-              ns.print(`[${hostname}] scheduling rider deployment on ${neighbor} (depth ${depth})`);
-              ns.exec("dnet-deploy-rider.js", neighbor);
-              ns.writePort(RIDER_PORT, neighbor);
-              ns.writePort(REPORT_PORT, JSON.stringify({
-                host: neighbor,
-                from: hostname,
-                status: "riderDeployed",
-                depth: depth,
-              }));
-            } else {
-              ns.print(`[${hostname}] rider already deployed on ${riderStatus}, skipping`);
-            }
-          }
-
-          break;
+          continue;
         }
-      }
 
-      if (!authenticated) {
+        // defer interactive models to dedicated solver
+        if (["KingOfTheHill", "RateMyPix.Auth", "The Labyrinth", "(The Labyrinth)", "2G_cellular", "BellaCuore"].includes(details.modelId)) {
+          ns.print(`[${hostname}] interactive model ${details.modelId} on ${neighbor} — deferring to solver`);
+          ns.writePort(REPORT_PORT, JSON.stringify({
+            host: neighbor,
+            from: hostname,
+            status: "deferred",
+            modelId: details.modelId,
+            hint: details.passwordHint,
+            format: details.passwordFormat,
+            length: details.passwordLength,
+          }));
+          continue;
+        }
+
+        // heartbleed for models that need log data
+        if (["OpenWebAccessPoint", "DeepGreen", "NIL"].includes(details.modelId)) {
+          const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
+          ns.print(`[${hostname}] heartbleed ${neighbor}: ${JSON.stringify(logs)}`);
+
+          if (details.modelId === "OpenWebAccessPoint") {
+            const matches = logs?.data?.match(/\d+/g) || [];
+            details._heartbleedCandidates = [...new Set(
+              matches.filter(m => m.length === details.passwordLength)
+            )];
+          } else if (details.modelId === "DeepGreen" || details.modelId === "NIL") {
+            const allDigits = [...new Set((logs?.data?.match(/\d/g) || []))];
+            ns.print(`[${hostname}] ${details.modelId} known digits: ${allDigits}`);
+            const candidates = [];
+            const total = Math.pow(allDigits.length, details.passwordLength);
+            for (let i = 0; i < total; i++) {
+              let pwd = "";
+              let n = i;
+              for (let j = 0; j < details.passwordLength; j++) {
+                pwd += allDigits[n % allDigits.length];
+                n = Math.floor(n / allDigits.length);
+              }
+              candidates.push(pwd);
+            }
+            details._heartbleedCandidates = [...new Set(candidates)];
+          }
+
+          ns.print(`[${hostname}] heartbleed candidates for ${neighbor}: ${details._heartbleedCandidates?.length ?? 0} total`);
+        }
+
+        const passwords = getPasswordCandidates(ns, details);
+
+        if (passwords.length === 0) {
+          ns.print(`[${hostname}] can't solve ${neighbor} (${details.modelId})`);
+          ns.writePort(REPORT_PORT, JSON.stringify({
+            host: neighbor,
+            from: hostname,
+            status: "unsolvable",
+            modelId: details.modelId,
+            hint: details.passwordHint,
+            data: details.data,
+            format: details.passwordFormat,
+            length: details.passwordLength,
+          }));
+          continue;
+        }
+
+        let authenticated = false;
+
+        for (const password of passwords) {
+          ns.print(`[${hostname}] trying ${neighbor} with: ${password}`);
+          const result = await ns.dnet.authenticate(neighbor, password);
+          ns.print(`[${hostname}] ${neighbor}: ${result.success} — ${result.message}`);
+
+          if (result.success) {
+            authenticated = true;
+
+            await ns.dnet.memoryReallocation(neighbor);
+            const ram = ns.getServerMaxRam(neighbor);
+            const files = ns.ls(neighbor);
+            ns.print(`[${hostname}] freed RAM on ${neighbor}: ${ram}GB`);
+
+            ns.writePort(REPORT_PORT, JSON.stringify({
+              host: neighbor,
+              from: hostname,
+              status: "authenticated",
+              depth: ns.dnet.getDepth(neighbor),
+              password: password,
+              ram: ram,
+              files: files,
+            }));
+
+            for (const script of SCRIPTS) {
+              await ns.scp(script, neighbor);
+            }
+
+            ns.exec("dnet-probe.js", neighbor);
+
+            const availRam = ram - ns.getServerUsedRam(neighbor);
+            if (availRam >= 7) {
+              ns.exec("dnet-interactive-solver.js", neighbor);
+            }
+
+            ns.exec("dnet-cache-opener.js", neighbor);
+
+            const depth = ns.dnet.getDepth(neighbor);
+            if (depth >= 4) {
+              const riderStatus = ns.peek(RIDER_PORT);
+              if (riderStatus === "NULL PORT DATA") {
+                ns.print(`[${hostname}] scheduling rider deployment on ${neighbor} (depth ${depth})`);
+                ns.exec("dnet-deploy-rider.js", neighbor);
+                ns.writePort(RIDER_PORT, neighbor);
+                ns.writePort(REPORT_PORT, JSON.stringify({
+                  host: neighbor,
+                  from: hostname,
+                  status: "riderDeployed",
+                  depth: depth,
+                }));
+              } else {
+                ns.print(`[${hostname}] rider already deployed on ${riderStatus}, skipping`);
+              }
+            }
+
+            break;
+          }
+        }
+
+        if (!authenticated) {
+          ns.writePort(REPORT_PORT, JSON.stringify({
+            host: neighbor,
+            from: hostname,
+            status: "failed",
+            modelId: details.modelId,
+            hint: details.passwordHint,
+            format: details.passwordFormat,
+            length: details.passwordLength,
+            tried: passwords.length > 20 ? `${passwords.length} candidates` : passwords.join(", "),
+            message: "all attempts failed",
+          }));
+        }
+
+      } catch (e) {
+        ns.print(`[${hostname}] error on ${neighbor}: ${e.message}`);
         ns.writePort(REPORT_PORT, JSON.stringify({
           host: neighbor,
           from: hostname,
-          status: "failed",
-          modelId: details.modelId,
-          hint: details.passwordHint,
-          format: details.passwordFormat,
-          length: details.passwordLength,
-          tried: passwords.length > 20 ? `${passwords.length} candidates` : passwords.join(", "),
-          message: "all attempts failed",
+          status: "error",
+          message: e.message,
         }));
       }
-
-    } catch (e) {
-      ns.print(`[${hostname}] error on ${neighbor}: ${e.message}`);
-      ns.writePort(REPORT_PORT, JSON.stringify({
-        host: neighbor,
-        from: hostname,
-        status: "error",
-        message: e.message,
-      }));
     }
-  }
 
-  ns.print(`[${hostname}] done`);
+    ns.print(`[${hostname}] cycle done, waiting for mutation`);
+    await ns.dnet.nextMutation();
+  } // end while
 }
 
 async function reportFiles(ns, hostname) {
