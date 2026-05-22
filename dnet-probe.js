@@ -431,6 +431,20 @@ function getPasswordCandidates(ns, details) {
       return permutations(data.split("")).map(p => p.join(""));
     }
 
+    case "PrimeTime 2": {
+      if (!data) return [];
+      let n = parseInt(data);
+      let largest = 1;
+      for (let f = 2; f * f <= n; f++) {
+        while (n % f === 0) {
+          largest = f;
+          n = Math.floor(n / f);
+        }
+      }
+      if (n > 1) largest = n;
+      return [String(largest)];
+    }
+        
     case "Factori-Os":
     case "KingOfTheHill": {
       if (passwordLength <= 0 || passwordLength > 4) return [];
