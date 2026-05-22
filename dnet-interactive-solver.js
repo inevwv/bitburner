@@ -47,77 +47,83 @@ async function solveLabyrinth(ns, hostname, neighbor) {
 
   await log(`[${hostname}] solving labyrinth on ${neighbor}`);
 
-  const marks = {}; // passage marks: "x,y->dir" = count
   const opposite = { north: "south", south: "north", east: "west", west: "east" };
   const directions = ["north", "east", "south", "west"];
 
-  const mark = (pos, dir) => {
-    const key = `${pos}->${dir}`;
-    marks[key] = (marks[key] || 0) + 1;
-    return marks[key];
-  };
+  // first get current position
+  const initial = await ns.dnet.labreport();
+  if (!initial.success) return;
 
-  const getMarks = (pos, dir) => marks[`${pos}->${dir}`] || 0;
+  // BFS: queue of {coords, path}
+  // path = sequence of directions to get here from start
+  const startPos = `${initial.coords[0]},${initial.coords[1]}`;
+  const queue = [{ pos: startPos, coords: initial.coords, path: [] }];
+  const visited = new Set([startPos]);
+
+  // build full map first by exploring
+  // since we can only move one step at a time via authenticate,
+  // we need to navigate to each BFS frontier node
+
+  // simpler approach: DFS but track full path for backtracking
+  const path = []; // directions taken
+  const visitedSet = new Set([startPos]);
 
   while (true) {
     const report = await ns.dnet.labreport();
-    if (!report.success) { await log(`labreport failed`); break; }
+    if (!report.success) break;
 
     const pos = `${report.coords[0]},${report.coords[1]}`;
-    await log(`[${hostname}] at ${pos} | n:${report.north} e:${report.east} s:${report.south} w:${report.west}`);
+    await log(`[${hostname}] at ${pos} step ${path.length}`);
 
-    const available = directions.filter(d => report[d]);
+    // find unvisited direction
+    const next = directions.find(d => {
+      if (!report[d]) return false;
+      const np = move(report.coords, d);
+      return !visitedSet.has(`${np[0]},${np[1]}`);
+    });
 
-    // Tremaux: prefer unmarked passages, then once-marked, never twice-marked
-    let next = available.find(d => getMarks(pos, d) === 0);
-
-    if (!next) {
-      // no unmarked — take least marked that isn't twice marked
-      next = available
-        .filter(d => getMarks(pos, d) < 2)
-        .sort((a, b) => getMarks(pos, a) - getMarks(pos, b))[0];
-    }
-
-    if (!next) {
-      await log(`[${hostname}] all passages twice marked — dead end, maze unsolvable`);
+    if (next) {
+      // move forward
+      visitedSet.add(`${move(report.coords, next)[0]},${move(report.coords, next)[1]}`);
+      path.push(next);
+      const result = await ns.dnet.authenticate(neighbor, `go ${next}`);
+      if (result.success) {
+        await log(`[${hostname}] labyrinth solved in ${path.length} steps!`);
+        await ns.dnet.memoryReallocation(neighbor);
+        const ram = ns.getServerMaxRam(neighbor);
+        const files = ns.ls(neighbor);
+        ns.writePort(REPORT_PORT, JSON.stringify({
+          host: neighbor,
+          from: hostname,
+          status: "authenticated",
+          depth: ns.dnet.getDepth(neighbor),
+          password: "maze",
+          ram: ram,
+          files: files,
+        }));
+        await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
+          "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
+          .map(s => ns.scp(s, neighbor)));
+        ns.exec("dnet-probe.js", neighbor);
+        ns.exec("dnet-cache-opener.js", neighbor);
+        return;
+      }
+    } else if (path.length > 0) {
+      // backtrack
+      const last = path.pop();
+      const back = opposite[last];
+      await log(`[${hostname}] backtracking ${back}`);
+      await ns.dnet.authenticate(neighbor, `go ${back}`);
+    } else {
+      // exhausted all paths
+      await log(`[${hostname}] maze fully explored, no exit found`);
       break;
-    }
-
-    mark(pos, next);
-
-    const result = await ns.dnet.authenticate(neighbor, `go ${next}`);
-    if (result.success) {
-      await log(`[${hostname}] labyrinth solved!`);
-      await ns.dnet.memoryReallocation(neighbor);
-      const ram = ns.getServerMaxRam(neighbor);
-      const files = ns.ls(neighbor);
-      ns.writePort(REPORT_PORT, JSON.stringify({
-        host: neighbor,
-        from: hostname,
-        status: "authenticated",
-        depth: ns.dnet.getDepth(neighbor),
-        password: "maze",
-        ram: ram,
-        files: files,
-      }));
-      await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
-        "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
-        .map(s => ns.scp(s, neighbor)));
-      ns.exec("dnet-cache-opener.js", neighbor);
-      ns.exec("dnet-probe.js", neighbor);
-      return;
-    }
-
-    // mark the arrival side too
-    const newReport = await ns.dnet.labreport();
-    if (newReport.success) {
-      const newPos = `${newReport.coords[0]},${newReport.coords[1]}`;
-      mark(newPos, opposite[next]);
     }
   }
 
   await log(`[${hostname}] labyrinth failed`);
 }
+  
 function move(coords, direction) {
   const [x, y] = coords;
   switch (direction) {
