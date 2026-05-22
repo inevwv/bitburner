@@ -31,7 +31,8 @@ export async function main(ns) {
         await solveBellaCuore(ns, hostname, neighbor, details);
       } else if (details.modelId === "2G_cellular") {
         await solve2GCellular(ns, hostname, neighbor, details);
-      }
+      } else if (details.modelId === "BigMo%od") {
+        await solveBigMoMod(ns, hsotname, neighbor, details);
     }
 
     await ns.dnet.nextMutation();
@@ -398,6 +399,44 @@ async function solve2GCellular(ns, hostname, neighbor, details) {
   }
 }
 
+async function solveBigMoMod(ns, hostname, neighbor, details) {
+  const len = details.passwordLength;
+  const max = Math.pow(10, len);
+  ns.print(`[${hostname}] BigMo%od on ${neighbor} — extracting constraints via heartbleed`);
+
+  // get initial constraints from existing logs
+  const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
+  const constraints = [];
+  
+  // parse logs for equations: (Password % n) % (n % 32) = result
+  const matches = [...(logs?.data?.matchAll(/\(Password % (\d+)\) % \((\d+) % 32\) = (\d+)/g) || [])];
+  for (const m of matches) {
+    const n = parseInt(m[1]);
+    const mod2 = parseInt(m[2]) % 32;
+    const result = parseInt(m[3]);
+    constraints.push({ n, mod2, result });
+    ns.print(`[${hostname}] constraint: (p % ${n}) % ${mod2} = ${result}`);
+  }
+
+  // brute force if length is small enough
+  if (len <= 5) {
+    for (let p = 0; p < max; p++) {
+      const guess = String(p).padStart(len, "0");
+      const satisfies = constraints.every(c => (p % c.n) % c.mod2 === c.result);
+      if (!satisfies) continue;
+
+      const result = await ns.dnet.authenticate(neighbor, guess);
+      if (result.success) {
+        ns.print(`[${hostname}] BigMo%od solved: ${guess}`);
+        await postAuth(ns, hostname, neighbor, guess);
+        return;
+      }
+    }
+  }
+
+  ns.print(`[${hostname}] BigMo%od failed`);
+}
+  
 function romanToInt(s) {
   if (!s || s.toLowerCase() === "nulla") return 0;
   const vals = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
