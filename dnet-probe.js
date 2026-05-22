@@ -144,8 +144,14 @@ export async function main(ns) {
           if (result.success) {
             authenticated = true;
 
-            await ns.dnet.memoryReallocation(neighbor);
-            const ram = ns.getServerMaxRam(neighbor);
+            let lastRam = 0;
+            let ram = ns.getServerMaxRam(neighbor);
+            while (ram > lastRam) {
+              lastRam = ram;
+              await ns.dnet.memoryReallocation(neighbor);
+              ram = ns.getServerMaxRam(neighbor);
+            }
+            ns.print(`[${hostname}] fully freed RAM on ${neighbor}: ${ram}GB`);
             const files = ns.ls(neighbor);
             ns.print(`[${hostname}] freed RAM on ${neighbor}: ${ram}GB`);
 
