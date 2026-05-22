@@ -58,12 +58,14 @@ export async function main(ns) {
             files: files,
           }));
 
+          const solverRam = ns.getScriptRam("dnet-interactive-solver.js");
           const availRam = ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor);
-          ns.print(`[${hostname}] ${neighbor} availRam: ${availRam}GB`);
-          if (availRam >= 7) {
-            ns.print(`[${hostname}] exec'ing solver on ${neighbor}`);
+          const solverThreads = Math.max(1, Math.floor(availRam / solverRam));
+          ns.print(`[${hostname}] ${neighbor} availRam: ${availRam}GB, solver threads: ${solverThreads}`);
+          if (availRam >= solverRam) {
+            ns.print(`[${hostname}] exec'ing solver on ${neighbor} with ${solverThreads} threads`);
             await ns.scp("dnet-interactive-solver.js", neighbor);
-            ns.exec("dnet-interactive-solver.js", neighbor, 1, [], { preventDuplicates: true });
+            ns.exec("dnet-interactive-solver.js", neighbor, solverThreads, [], { preventDuplicates: true });
           } else {
             ns.print(`[${hostname}] not enough RAM on ${neighbor} for solver`);
           }
@@ -163,9 +165,11 @@ export async function main(ns) {
 
             ns.exec("dnet-probe.js", neighbor);
 
+            const solverRam = ns.getScriptRam("dnet-interactive-solver.js");
             const availRam = ram - ns.getServerUsedRam(neighbor);
-            if (availRam >= 7) {
-              ns.exec("dnet-interactive-solver.js", neighbor);
+            const solverThreads = Math.max(1, Math.floor(availRam / solverRam));
+            if (availRam >= solverRam) {
+              ns.exec("dnet-interactive-solver.js", neighbor, solverThreads);
             }
 
             ns.exec("dnet-cache-opener.js", neighbor);
