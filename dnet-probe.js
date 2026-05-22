@@ -71,7 +71,7 @@ export async function main(ns) {
         }
 
         // defer interactive models to dedicated solver
-        if (["KingOfTheHill", "RateMyPix.Auth", "The Labyrinth", "(The Labyrinth)", "2G_cellular", "BellaCuore"].includes(details.modelId)) {
+        if (["KingOfTheHill", "RateMyPix.Auth", "The Labyrinth", "(The Labyrinth)", "2G_cellular", "BellaCuore", "BigMo%od"].includes(details.modelId)) {
           ns.print(`[${hostname}] interactive model ${details.modelId} on ${neighbor} — deferring to solver`);
           ns.writePort(REPORT_PORT, JSON.stringify({
             host: neighbor,
