@@ -12,6 +12,25 @@ const SCRIPTS = [
   "dnet-storm.js",
 ];
 
+const COMMON_PASSWORDS_ALPHA = [
+  "aaaaaa", "access", "amanda", "andrew", "asdfgh", "ashley", "austin", "baseball", "batman", "biteme", "buster", 
+  "charlie", "cheese", "chelsea", "computer", "dallas", "daniel", "dragon", "football", "freedom", "george", "ginger", 
+  "harley", "hockey", "hunter", "iloveyou", "jennifer", "jessica", "jordan", "joshua", "letmein", "love", "maggie", 
+  "master", "matthew", "michael", "michelle", "monkey", "mustang", "nicole", "pass", "password", "pepper", "princess", 
+  "qazwsx", "qwerty", "qwertyuiop", "ranger", "robert", "shadow", "soccer", "starwars", "summer", "sunshine", "superman", 
+  "taylor", "thomas", "thunder", "tigger", "yankees", "zxcvbn", "zxcvbnm"
+];
+
+const COMMON_PASSWORDS_NUMERIC = [
+  "0", "1111", "1234", "2000", "6969", "12345", "111111", "112233", "121212", "123123", "123321", "123456", "131313",
+  "159753", "555555", "654321", "666666", "696969", "777777", "1234567", "7777777", "11111111", "12345678", "123456789",
+  "987654321", "1234567890"
+];
+
+const COMMON_PASSWORDS_ALPHANUMERIC = [
+  "123qwe", "1qaz2wsx", "abc123", "trustno1", 
+];
+  
 export async function main(ns) {
   ns.disableLog("ALL");
   ns.clearLog();
@@ -331,24 +350,20 @@ function getPasswordCandidates(ns, details) {
       return candidates;
     }
     
+    case "TopPass":
     case "FreshInstall_1.0": {
       if (passwordFormat === "numeric") {
-        const candidates = new Set();
+        const candidates = new Set(COMMON_PASSWORDS_NUMERIC.filter(p => p.length === passwordLength));
         candidates.add("0".repeat(passwordLength));
         for (let d = 0; d <= 9; d++) candidates.add(String(d).repeat(passwordLength));
         candidates.add(Array.from({ length: passwordLength }, (_, i) => (i + 1) % 10).join(""));
         candidates.add(Array.from({ length: passwordLength }, (_, i) => (9 - i) % 10).join(""));
         return [...candidates];
       }
-      const defaults = [
-        "password", "admin", "root", "default", "letmein",
-        "welcome", "monkey", "dragon", "master", "passw0rd",
-        "qwerty", "abc123", "iloveyou", "sunshine", "princess",
-        "mustang", "michael", "superman", "qazwsx", "123qwe",
-        "computer", "michelle", "jessica", "pepper", "freedom", "maggie",
-        "qwertyuiop", "1qaz2wsx", "zxcvbn",
-      ];
-      return [...new Set(defaults)].filter(p => p.length === passwordLength);
+      if (passwordFormat === "alphanumeric") {
+        return [...new Set(COMMON_PASSWORDS_ALPHANUMERIC)].filter(p => p.length === passwordLength);
+      }
+      return [...new Set(COMMON_PASSWORDS_ALPHA)].filter(p => p.length === passwordLength);
     }
 
     case "CloudBlare(tm)": {
