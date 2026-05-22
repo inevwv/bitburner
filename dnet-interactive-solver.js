@@ -319,11 +319,24 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
 }
 
 async function solveBellaCuore(ns, hostname, neighbor, details) {
-  const match = details.passwordHint.match(/between '(\w+)' and '(\w+)'/);
-  if (!match) return;
+  let lo, hi;
 
-  let lo = romanToInt(match[1]) || 0; // nulla = 0
-  let hi = romanToInt(match[2]);
+  const hintMatch = details.passwordHint.match(/between '(\w+)' and '(\w+)'/);
+  if (hintMatch) {
+    lo = romanToInt(hintMatch[1]) || 0;
+    hi = romanToInt(hintMatch[2]);
+  } else if (details.data) {
+    const parts = details.data.split(",");
+    if (parts.length === 2) {
+      lo = romanToInt(parts[0].trim());
+      hi = romanToInt(parts[1].trim());
+    }
+  }
+
+  if (lo === undefined || hi === undefined) {
+    ns.print(`[${hostname}] BellaCuore: couldn't parse bounds`);
+    return;
+  }
 
   ns.print(`[${hostname}] BellaCuore binary search ${lo}-${hi}`);
 
@@ -334,7 +347,23 @@ async function solveBellaCuore(ns, hostname, neighbor, details) {
     const result = await ns.dnet.authenticate(neighbor, guess);
     if (result.success) {
       ns.print(`[${hostname}] BellaCuore solved: ${guess}`);
-      // ... standard post-auth block
+      await ns.dnet.memoryReallocation(neighbor);
+      const ram = ns.getServerMaxRam(neighbor);
+      const files = ns.ls(neighbor);
+      ns.writePort(REPORT_PORT, JSON.stringify({
+        host: neighbor,
+        from: hostname,
+        status: "authenticated",
+        depth: ns.dnet.getDepth(neighbor),
+        password: guess,
+        ram: ram,
+        files: files,
+      }));
+      await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
+        "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
+        .map(s => ns.scp(s, neighbor)));
+      ns.exec("dnet-probe.js", neighbor);
+      ns.exec("dnet-cache-opener.js", neighbor);
       return;
     }
 
@@ -347,7 +376,7 @@ async function solveBellaCuore(ns, hostname, neighbor, details) {
     } else if (feedback.includes("PARUM BREVIS")) {
       lo = mid + 1;
     } else {
-      lo = mid + 1; // unknown feedback, just advance
+      lo = mid + 1;
     }
   }
 
