@@ -32,9 +32,9 @@ export async function main(ns) {
       } else if (details.modelId === "2G_cellular") {
         await solve2GCellular(ns, hostname, neighbor, details);
       } else if (details.modelId === "BigMo%od") {
-        await solveBigMoMod(ns, hsotname, neighbor, details);
+        await solveBigMoMod(ns, hostname, neighbor, details);
+      }
     }
-
     await ns.dnet.nextMutation();
   }
 }
@@ -472,6 +472,26 @@ async function solveBigMoMod(ns, hostname, neighbor, details) {
   ns.print(`[${hostname}] BigMo%od failed`);
 }
   
+async function postAuth(ns, hostname, neighbor, password) {
+  await ns.dnet.memoryReallocation(neighbor);
+  const ram = ns.getServerMaxRam(neighbor);
+  const files = ns.ls(neighbor);
+  ns.writePort(REPORT_PORT, JSON.stringify({
+    host: neighbor,
+    from: hostname,
+    status: "authenticated",
+    depth: ns.dnet.getDepth(neighbor),
+    password: password,
+    ram: ram,
+    files: files,
+  }));
+  await Promise.all(["dnet-probe.js","dnet-rider.js","dnet-interactive-solver.js",
+    "dnet-stasis.js","dnet-cache-opener.js","dnet-deploy-rider.js","dnet-storm.js"]
+    .map(s => ns.scp(s, neighbor)));
+  ns.exec("dnet-probe.js", neighbor);
+  ns.exec("dnet-cache-opener.js", neighbor);
+}
+
 function romanToInt(s) {
   if (!s || s.toLowerCase() === "nulla") return 0;
   const vals = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
