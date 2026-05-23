@@ -60,7 +60,7 @@ export async function main(ns) {
     if (canCreate) {
       ns.print(`Racing creation vs purchase for ${program}...`);
     } else {
-      ns.print(`Saving to buy ${program} ($${ns.formatNumber(darkwebCost)})...`);
+      ns.print(`Saving to buy ${program} ($${ns.format.number(darkwebCost)})...`);
     }
 
     // Race loop: every 5s check if creation finished OR we can now afford it
