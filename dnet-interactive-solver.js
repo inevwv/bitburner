@@ -33,6 +33,8 @@ export async function main(ns) {
         await solve2GCellular(ns, hostname, neighbor, details);
       } else if (details.modelId === "BigMo%od") {
         await solveBigMoMod(ns, hostname, neighbor, details);
+      } else if (details.modelId === "Factori-Os" && details.passwordLength > 4) {
+        await solveFactoriOs(ns, hostname, neighbor, details);
       }
     }
     await ns.dnet.nextMutation();
@@ -477,6 +479,48 @@ async function solveBigMoMod(ns, hostname, neighbor, details) {
   ns.print(`[${hostname}] BigMo%od failed`);
 }
   
+async function solveFactoriOs(ns, hostname, neighbor, details) {
+  const len = details.passwordLength;
+  ns.print(`[${hostname}] Factori-Os on ${neighbor} length ${len}`);
+
+  // get divisor from heartbleed logs
+  const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
+  const match = logs?.data?.match(/not divisible by '(\d+)'/);
+  if (!match) {
+    ns.print(`[${hostname}] Factori-Os: no divisor found in logs`);
+    return;
+  }
+
+  const divisor = parseInt(match[1]);
+  ns.print(`[${hostname}] Factori-Os divisor: ${divisor}`);
+
+  // find smallest passwordLength-digit number divisible by divisor
+  const min = Math.pow(10, len - 1);
+  const max = Math.pow(10, len);
+  const start = Math.ceil(min / divisor) * divisor;
+
+  for (let n = start; n < max; n += divisor) {
+    const guess = String(n);
+    if (guess.length !== len) continue;
+    const result = await ns.dnet.authenticate(neighbor, guess);
+    if (result.success) {
+      ns.print(`[${hostname}] Factori-Os solved: ${guess}`);
+      await postAuth(ns, hostname, neighbor, guess);
+      return;
+    }
+    // check if divisor changed
+    const newLogs = await ns.dnet.heartbleed(neighbor, { peek: false });
+    const newMatch = newLogs?.data?.match(/not divisible by '(\d+)'/);
+    if (newMatch && parseInt(newMatch[1]) !== divisor) {
+      ns.print(`[${hostname}] Factori-Os divisor changed, restarting`);
+      await solveFactoriOs(ns, hostname, neighbor, details);
+      return;
+    }
+  }
+
+  ns.print(`[${hostname}] Factori-Os failed`);
+}
+
 async function postAuth(ns, hostname, neighbor, password) {
   await ns.dnet.memoryReallocation(neighbor);
   const ram = ns.getServerMaxRam(neighbor);
