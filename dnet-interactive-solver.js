@@ -241,7 +241,6 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
   let bestGuess = null;
   let bestScore = -1;
   const tried = new Set();
-  const digitPool = knownDigits.length > 0 ? knownDigits : ["0","1","2","3","4","5","6","7","8","9"];
   const alphaPool = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
   const digitPool = details.passwordFormat === "alphanumeric" 
     ? (knownDigits.length > 0 ? knownDigits : alphaPool)
