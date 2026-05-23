@@ -233,13 +233,19 @@ async function solveRateMyPix(ns, hostname, neighbor, details) {
   }));
 
   const logs = await ns.dnet.heartbleed(neighbor, { peek: true });
-  const knownDigits = [...new Set((logs?.data?.match(/\d/g) || []))];
+  const knownDigits = details.passwordFormat === "alphanumeric"
+    ? [...new Set((logs?.data?.match(/[a-zA-Z0-9]/g) || []))]
+    : [...new Set((logs?.data?.match(/\d/g) || []))];
   ns.print(`[${hostname}] RateMyPix known digits: ${knownDigits}`);
 
   let bestGuess = null;
   let bestScore = -1;
   const tried = new Set();
   const digitPool = knownDigits.length > 0 ? knownDigits : ["0","1","2","3","4","5","6","7","8","9"];
+  const alphaPool = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
+  const digitPool = details.passwordFormat === "alphanumeric" 
+    ? (knownDigits.length > 0 ? knownDigits : alphaPool)
+    : (knownDigits.length > 0 ? knownDigits : ["0","1","2","3","4","5","6","7","8","9"]);
 
   for (let i = 0; i < 50; i++) {
     let candidate;
