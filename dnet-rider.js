@@ -20,19 +20,38 @@ export async function main(ns) {
         ns.tprint(`[${hostname}] server went offline, rider terminating`);
         return;
       }
-      // if we've crossed the airgap, stasis link ourselves
-      if (depth >= 8) {
-        const linked = ns.dnet.getStasisLinkedServers();
-        if (!linked.includes(hostname) && linked.length < ns.dnet.getStasisLinkLimit()) {
-          ns.dnet.setStasisLink(true);
-          ns.tprint(`[${hostname}] CROSSED AIRGAP at depth ${depth} — stasis link set!`);
-          ns.writePort(REPORT_PORT, JSON.stringify({
-            host: hostname,
-            status: "airgapCrossed",
-            depth: depth,
-          }));
-        }
-      }
+      // if we've crossed an airgap, stasis link ourselves
+const linked = ns.dnet.getStasisLinkedServers();
+const limit = ns.dnet.getStasisLinkLimit();
+
+if (!linked.includes(hostname) && linked.length < limit) {
+  const hasGap1Link = linked.some(s => {
+    const d = ns.dnet.getDepth(s);
+    return d >= 8 && d < 15;
+  });
+  const hasGap2Link = linked.some(s => {
+    const d = ns.dnet.getDepth(s);
+    return d >= 15 && d < 21;
+  });
+
+  if (depth >= 8 && depth < 15 && !hasGap1Link) {
+    ns.dnet.setStasisLink(true);
+    ns.tprint(`[${hostname}] stasis set — airgap 1 at depth ${depth}`);
+    ns.writePort(REPORT_PORT, JSON.stringify({
+      host: hostname,
+      status: "stasisSet",
+      depth: depth,
+    }));
+  } else if (depth >= 15 && depth < 21 && !hasGap2Link) {
+    ns.dnet.setStasisLink(true);
+    ns.tprint(`[${hostname}] stasis set — airgap 2 at depth ${depth}`);
+    ns.writePort(REPORT_PORT, JSON.stringify({
+      host: hostname,
+      status: "stasisSet",
+      depth: depth,
+    }));
+  }
+}
 
       const neighbors = ns.dnet.probe();
       ns.tprint(`[${hostname}] depth:${depth} neighbors:${neighbors.length}`);
