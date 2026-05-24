@@ -76,8 +76,8 @@ export async function main(ns) {
     const isPriority = PRIORITY_AUGS.includes(aug);
     const tag = isPriority ? "★" : " ";
     const num = String(i + 1).padStart(2, " ");
-    const name = aug.padEnd(36, " ").slice(0, 36);
-    const src  = `[${faction}]`.padEnd(18, " ").slice(0, 18);
+    const name = aug.length > 36 ? aug.slice(0, 35) + "…" : aug.padEnd(36);
+    const src  = faction.length > 16 ? faction.slice(0, 15) + "…" : `[${faction}]`.padEnd(18);
     ns.print(`${num}${tag} ${name} ${src} ${ns.format.number(adjustedPrice, 2)}`);
   }
 
@@ -119,7 +119,8 @@ export async function main(ns) {
     for (const aug of locked) {
       const repReq = ns.singularity.getAugmentationRepReq(aug);
       const pct = Math.min(99, Math.floor((currentRep / repReq) * 100));
-      ns.print(`  ${aug.padEnd(36).slice(0, 36)} [${faction}] ${pct}%`);
+      const augName = aug.length > 36 ? aug.slice(0, 35) + "…" : aug.padEnd(36);
+      ns.print(`  ${augName} [${faction}] ${pct}%`);
       lockedCount++;
     }
   }
@@ -195,7 +196,7 @@ function calcStatGains(ns, augNames) {
   for (const aug of augNames) {
     const stats = ns.singularity.getAugmentationStats(aug);
     for (const [field, value] of Object.entries(stats)) {
-      gains[field] = (gains[field] ?? 1) * value;
+      if (value !== 1) gains[field] = (gains[field] ?? 1) * value;
     }
   }
   return gains;
