@@ -1,6 +1,6 @@
 import { getAllServers, tryNuke } from "./utils.js";
 
-const HOME_RESERVED_RAM = 32; // adjust to taste
+const HOME_RESERVED_RAM = 256; // adjust to taste
 
 
 function getBestTarget(ns, servers) {
