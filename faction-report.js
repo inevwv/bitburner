@@ -88,9 +88,6 @@ export async function main(ns) {
 
   const gains = calcStatGains(ns, fullQueue.map(e => e.aug));
 
-  // Debug: print raw gains object
-  ns.print("DEBUG gains: " + JSON.stringify(gains));
-
   for (const [category, fields] of Object.entries(STAT_CATEGORIES)) {
     // Find which fields actually have gains
     const affected = fields.filter(f => (gains[f] ?? 1) > 1);
