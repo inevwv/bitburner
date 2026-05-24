@@ -15,6 +15,12 @@ const UPDATE_INTERVAL = 5_000; // ms
 
 /** @param {NS} ns */
 export async function main(ns) {
+  // Override RAM to exclude the 25GB document access cost.
+  // Actual NS function costs: getOwnedAugmentations (2.5) + getAugmentationsFromFaction (4)
+  // + getAugmentationRepReq (2.5) + getAugmentationPrice (2.5) + getFactionRep (3)
+  // + getPlayer (0.5) + disableLog (0) + atExit (0) + ui.getTheme (0) = ~15GB
+  ns.ramOverride(15);
+
   ns.disableLog("ALL");
 
   // ── Create HUD element ───────────────────────────────────────────────
