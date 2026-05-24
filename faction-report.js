@@ -111,27 +111,6 @@ export async function main(ns) {
   }
 
   ns.print("");
-  ns.print("── UNAFFORDABLE AT CURRENT REP ────────────");
-
-  // Show augs you're still grinding toward
-  let lockedCount = 0;
-  for (const faction of allFactions) {
-    const currentRep = ns.singularity.getFactionRep(faction);
-    const locked = getUnownedAugs(ns, faction, ownedAugs)
-      .filter(a => currentRep < ns.singularity.getAugmentationRepReq(a));
-
-    for (const aug of locked) {
-      const repReq = ns.singularity.getAugmentationRepReq(aug);
-      const pct = Math.min(99, Math.floor((currentRep / repReq) * 100));
-      const augName = aug.length > 36 ? aug.slice(0, 35) + "…" : aug.padEnd(36);
-      ns.print(`  ${augName} [${faction}] ${pct}%`);
-      lockedCount++;
-    }
-  }
-
-  if (lockedCount === 0) ns.print("  None — all augs unlocked!");
-
-  ns.print("");
   ns.print("Run faction-buy.js to execute this queue.");
 }
 
