@@ -79,7 +79,26 @@ export async function main(ns) {
       continue;
     }
 
-    // Build rows
+    // ── Money progress ───────────────────────────────────────────────
+    const totalCost = calcTotalAugCost(ns, displayFactions, ownedAugs);
+    const playerMoney = ns.getPlayer().money;
+    const moneyPct = Math.min(100, (playerMoney / totalCost) * 100);
+    const moneyDone = playerMoney >= totalCost;
+
+    const moneyRow = `
+      <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid ${theme.secondary};">
+        <div style="display:flex; justify-content:space-between; color:${moneyDone ? theme.success : theme.primary};">
+          <span>${moneyDone ? "✓" : "·"} Buy Queue Cost</span>
+          <span style="font-size:11px; color:${theme.secondary};">${ns.format.number(totalCost, "$0.00a")}</span>
+        </div>
+        <div style="margin-top:3px;">${progressBar(moneyPct, theme)}</div>
+        <div style="display:flex; justify-content:space-between; color:${theme.secondary}; font-size:11px; margin-top:2px;">
+          <span>${ns.format.number(playerMoney, "$0.00a")}</span>
+          <span>${ns.format.number(totalCost, "$0.00a")}</span>
+        </div>
+      </div>
+    `;
+
     let rows = "";
     let allDone = true;
 
@@ -133,6 +152,7 @@ export async function main(ns) {
       <div style="color:${theme.primary}; margin-bottom:8px; font-weight:bold; border-bottom: 1px solid ${theme.secondary}; padding-bottom:4px;">
         ◈ FACTION HUD <span style="font-size:10px; font-weight:normal; color:${theme.secondary};">[${TOGGLE_KEY} toggle]</span>
       </div>
+      ${moneyRow}
       ${rows}
       ${readyMsg}
     `);
@@ -144,7 +164,8 @@ export async function main(ns) {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function applyTheme(el, theme) {
-  el.style.backgroundColor = hexToRgba(theme.backgroundsecondary, 0.92);
+  el.style.backgroundColor = hexToRgba(theme.backgroundsecondary, 1);
+  el.style.backdropFilter   = "blur(6px)";
   el.style.border           = `1px solid ${theme.secondary}`;
   el.style.color            = theme.primary;
 }
@@ -171,7 +192,33 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/** Get unowned augs from a faction, excluding NeuroFlux Governor */
+/** Calculate total cost of all purchasable unowned augs with price multiplier stacking */
+function calcTotalAugCost(ns, factions, ownedAugs) {
+  // Collect all unowned augs across factions, deduped
+  const seen = new Set();
+  const prices = [];
+
+  for (const faction of factions) {
+    for (const aug of getUnownedAugs(ns, faction, ownedAugs)) {
+      if (!seen.has(aug)) {
+        seen.add(aug);
+        prices.push(ns.singularity.getAugmentationPrice(aug));
+      }
+    }
+  }
+
+  // Sort cheapest first (mirrors buy queue logic) and stack the 1.9x multiplier
+  prices.sort((a, b) => a - b);
+  let total = 0;
+  let multiplier = 1;
+  for (const price of prices) {
+    total += price * multiplier;
+    multiplier *= 1.9;
+  }
+  return total;
+}
+
+
 function getUnownedAugs(ns, faction, ownedAugs) {
   return ns.singularity.getAugmentationsFromFaction(faction)
     .filter(a => !ownedAugs.has(a) && a !== "NeuroFlux Governor");
