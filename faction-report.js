@@ -20,6 +20,10 @@ import {
 export async function main(ns) {
   ns.disableLog("ALL");
   ns.ui.openTail();
+  await ns.sleep(100); // wait for tail to open before resizing
+  const [ww, wh] = ns.ui.windowSize();
+  ns.ui.resizeTail(Math.min(800, ww * 0.6), wh * 0.85);
+  ns.ui.moveTail(ww / 2 - 400, wh * 0.05);
 
   const ownedAugs    = new Set(ns.singularity.getOwnedAugmentations(true));
   const joinedFactions = ns.getPlayer().factions;
