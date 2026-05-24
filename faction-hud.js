@@ -95,12 +95,12 @@ export async function main(ns) {
       <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid ${theme.secondary};">
         <div style="display:flex; justify-content:space-between; color:${moneyDone ? theme.success : theme.primary};">
           <span>${moneyDone ? "✓" : "·"} Buy Queue Cost</span>
-          <span style="font-size:11px; color:${theme.secondary};">${ns.format.number(totalCost, "$0.00a")}</span>
+          <span style="font-size:11px; color:${theme.secondary};">${ns.format.number(totalCost, 2)}</span>
         </div>
         <div style="margin-top:3px;">${progressBar(moneyPct, theme)}</div>
         <div style="display:flex; justify-content:space-between; color:${theme.secondary}; font-size:11px; margin-top:2px;">
-          <span>${ns.format.number(playerMoney, "$0.00a")}</span>
-          <span>${ns.format.number(totalCost, "$0.00a")}</span>
+          <span>${ns.format.number(playerMoney, 2)}</span>
+          <span>${ns.format.number(totalCost, 2)}</span>
         </div>
       </div>
     `;
@@ -141,8 +141,8 @@ export async function main(ns) {
             ${progressBar(pct, theme)}
           </div>
           <div style="display:flex; justify-content:space-between; color:${theme.secondary}; font-size:11px; margin-top:2px;">
-            <span>${ns.format.number(currentRep, "0.00a")}</span>
-            <span>${ns.format.number(targetRep, "0.00a")}</span>
+            <span>${ns.format.number(currentRep, 2)}</span>
+            <span>${ns.format.number(targetRep, 2)}</span>
           </div>
         </div>
       `;
