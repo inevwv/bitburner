@@ -234,9 +234,3 @@ function calcTotalAugCost(ns, factions, ownedAugs) {
   }
   return total;
 }
-
-
-function getUnownedAugs(ns, faction, ownedAugs) {
-  return ns.singularity.getAugmentationsFromFaction(faction)
-    .filter(a => !ownedAugs.has(a) && a !== "NeuroFlux Governor");
-}
