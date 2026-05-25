@@ -12,24 +12,29 @@
 //
 // Add/remove factions here each reset. Scripts never need editing.
 export const FACTION_BUCKET = [
-  "Tian Di Hui",   // Priority 1: Neuroreceptor (removes unfocused penalty) + SNA (rep gain)
-  "Sector-12",     // Priority 2: CashRoot (BruteSSH + starting money)
-  "Aevum",         // Priority 3: PCMatrix (DeepscanV1 + AutoLink + work money)
+  "BitRunners",    // Priority 1: Neurolink (FTPCrack + RelaySMTP programs)
+  "NiteSec",       // Priority 2: Cranial Gen V, Neural Accelerator, Hacknet augs
+  "Chongqing",     // East Asia sweep — faction-join.js picks best scorer of the three
+  "New Tokyo",
+  "Ishima",
 ];
 
 // ── City Faction Conflicts ─────────────────────────────────────────────────
 // Groups of city factions that are mutually exclusive.
 // faction-join.js uses this to avoid joining conflicting cities.
 // Sector-12/Aevum are preferred early (program augs); score-based after.
+// City factions and their exclusions — used as a fallback if getFactionEnemies() is unavailable.
+// In practice faction-join.js uses getFactionEnemies() at runtime which is more accurate.
 export const CITY_CONFLICT_GROUPS = [
-  ["Sector-12", "Aevum"],           // Group A — prefer early for program augs
-  ["Chongqing", "New Tokyo", "Ishima"], // Group B
-  ["Volhaven"],                     // Excludes all other cities
+  ["Sector-12", "Aevum"],                         // mutually exclusive with each other
+  ["Sector-12", "Chongqing", "New Tokyo", "Ishima"], // Sector-12 excludes east asia
+  ["Aevum", "Chongqing", "New Tokyo", "Ishima"],     // Aevum excludes east asia
+  ["Volhaven"],                                    // Volhaven excludes all other cities
 ];
 
 // Factions that give program-granting augs — always preferred over city rivals
 // until you own all their unique program augs.
-export const PROGRAM_FACTIONS = ["Sector-12", "Aevum", "BitRunners"];
+export const PROGRAM_FACTIONS = ["BitRunners"];
 
 // ── Aug Categories ─────────────────────────────────────────────────────────
 // Maps AugmentationStats field names to stat categories.
@@ -103,9 +108,5 @@ export const BN_MULT_FIELDS = {
 // of the buy queue regardless of preset.
 export const PRIORITY_AUGS = [
   // Program-granting
-  "CashRoot Starter Kit",           // BruteSSH.exe + $1m start (Sector-12)
-  "PCMatrix",                       // DeepscanV1 + AutoLink (Aevum)
   "BitRunners Neurolink",           // FTPCrack + RelaySMTP (BitRunners)
-  // Debuff-removing
-  "Neuroreceptor Management Implant", // Removes unfocused work penalty (Tian Di Hui)
 ];
