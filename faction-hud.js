@@ -18,7 +18,7 @@ const UPDATE_INTERVAL = 5_000; // ms
 export async function main(ns) {
   // Override RAM to exclude the 25GB document access cost.
   // Actual dynamic RAM usage is 17.10GB per the runtime error, so use 18GB to be safe.
-  ns.ramOverride(20);
+  ns.ramOverride(18);
 
   ns.disableLog("ALL");
 
