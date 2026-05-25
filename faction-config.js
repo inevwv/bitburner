@@ -19,7 +19,20 @@ export const FACTION_BUCKET = [
   "Ishima",
 ];
 
-// ── City Faction Conflicts ─────────────────────────────────────────────────
+// ── City Faction → City Name mapping ──────────────────────────────────────
+// Used by faction-join.js to travel to the right city before joining.
+export const CITY_FACTION_LOCATIONS = {
+  "Sector-12": "Sector-12",
+  "Aevum":     "Aevum",
+  "Chongqing": "Chongqing",
+  "New Tokyo":  "New Tokyo",
+  "Ishima":    "Ishima",
+  "Volhaven":  "Volhaven",
+};
+
+const TRAVEL_COST = 200_000;
+
+
 // Groups of city factions that are mutually exclusive.
 // faction-join.js uses this to avoid joining conflicting cities.
 // Sector-12/Aevum are preferred early (program augs); score-based after.
