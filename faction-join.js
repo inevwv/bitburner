@@ -11,6 +11,7 @@ import {
   FACTION_BUCKET,
   FACTION_BLOCKLIST,
   CITY_CONFLICT_GROUPS,
+  CITY_FACTION_LOCATIONS,
   PROGRAM_FACTIONS,
   PRIORITY_AUGS,
   STAT_CATEGORIES,
@@ -43,6 +44,28 @@ export async function main(ns) {
     const invitations = ns.singularity.checkFactionInvitations();
     const currentFactions = ns.getPlayer().factions;
     const ownedAugs = new Set(ns.singularity.getOwnedAugmentations(true));
+
+    // ── Travel to bucket city factions ────────────────────────────────
+    for (const faction of FACTION_BUCKET) {
+      if (!(faction in CITY_FACTION_LOCATIONS)) continue;        // not a city faction
+      if (currentFactions.includes(faction)) continue;           // already joined
+      if (FACTION_BLOCKLIST.includes(faction)) continue;         // blocked
+      if (invitations.includes(faction)) continue;               // already invited
+
+      const city = CITY_FACTION_LOCATIONS[faction];
+      const currentCity = ns.getPlayer().city;
+
+      if (currentCity === city) continue; // already there
+
+      const money = ns.getServerMoneyAvailable("home");
+      if (money * 0.1 < 200_000) {
+        ns.print(`Waiting — traveling to ${city} would spend more than 10% of funds.`);
+        continue;
+      }
+
+      ns.singularity.travelToCity(city);
+      ns.print(`✈ Traveled to ${city} for ${faction} invitation.`);
+    }
 
     for (const faction of invitations) {
       if (currentFactions.includes(faction)) continue;
