@@ -11,6 +11,7 @@
 import {
   PRIORITY_AUGS,
   PRESETS,
+  STAT_CATEGORIES,
 } from "faction-config.js";
 import {
   collectPurchasableAugs,
