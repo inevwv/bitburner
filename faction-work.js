@@ -121,5 +121,5 @@ function getUnownedAugs(ns, faction, ownedAugs) {
 
 /** Format large numbers readably */
 function fmt(ns, n) {
-  return ns.format.number(n, "0.00a");
+  return ns.format.number(n, 2);
 }
