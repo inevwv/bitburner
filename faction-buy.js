@@ -45,7 +45,7 @@ export async function main(ns) {
     .filter(a => PRIORITY_AUGS.includes(a.aug))
     .sort((a, b) => a.repReq - b.repReq); // cheapest rep first
 
-  const regularQueue = buildRegularQueue(available.filter(a => !PRIORITY_AUGS.includes(a.aug)), preset);
+  const regularQueue = buildRegularQueue(ns, available.filter(a => !PRIORITY_AUGS.includes(a.aug)), preset);
 
   const fullQueue = [...priorityQueue, ...regularQueue];
 
@@ -54,7 +54,7 @@ export async function main(ns) {
   let multiplier = 1;
   for (const entry of fullQueue) {
     const adjustedPrice = entry.price * multiplier;
-    ns.tprint(`  [${entry.faction}] ${entry.aug} — ${ns.format.number(adjustedPrice, "$0.00a")} (rep: ${ns.format.number(entry.repReq, "0.00a")})`);
+    ns.tprint(`  [${entry.faction}] ${entry.aug} — ${ns.format.number(adjustedPrice, 2)} (rep: ${ns.format.number(entry.repReq, 2)})`);
     multiplier *= 1.9; // each aug increases price by 90%
   }
   ns.tprint(`Total augs to buy: ${fullQueue.length}`);
@@ -178,7 +178,7 @@ function collectAvailableAugs(ns, factions, ownedAugs) {
 // ── Queue sorting ──────────────────────────────────────────────────────────
 
 /** Sort regular augs by preset category order, then rep efficiency within each category */
-function buildRegularQueue(augs, preset) {
+function buildRegularQueue(ns, augs, preset) {
   const categoryOrder = PRESETS[preset];
 
   // Tag each aug with its best matching category
