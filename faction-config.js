@@ -6,17 +6,44 @@
  * Used by: faction-join.js, faction-work.js
  */
 
-// ── Faction Buckets ────────────────────────────────────────────────────────
-// Each entry is one prestige's worth of target factions, in work priority order.
-// faction-work.js will work them in this order, sweeping all augs from each.
-//
-// Add/remove factions here each reset. Scripts never need editing.
-export const FACTION_BUCKET = [
-  "BitRunners",    // Priority 1: Neurolink (FTPCrack + RelaySMTP programs)
-  "NiteSec",       // Priority 2: Cranial Gen V, Neural Accelerator, Hacknet augs
-  "Chongqing",     // East Asia sweep — faction-join.js picks best scorer of the three
+// ── Faction Pool ───────────────────────────────────────────────────────────
+// All factions the auto-bucket can draw from. Excludes endgame factions
+// (Daedalus, Illuminati, The Covenant) until you're ready for them.
+// Edit this list only when you want to add/remove factions from consideration.
+export const FACTION_POOL = [
+  // Hacking factions
+  "CyberSec",
+  "NiteSec",
+  "The Black Hand",
+  "BitRunners",
+  // City factions
+  "Sector-12",
+  "Aevum",
+  "Chongqing",
   "New Tokyo",
   "Ishima",
+  "Volhaven",
+  // Criminal factions
+  "Slum Snakes",
+  "Tetrads",
+  "Silhouette",
+  "Speakers for the Dead",
+  "The Dark Army",
+  "The Syndicate",
+  // Early factions
+  "Tian Di Hui",
+  "Netburners",
+  // Company factions
+  "ECorp",
+  "MegaCorp",
+  "KuaiGong International",
+  "Four Sigma",
+  "NWO",
+  "Blade Industries",
+  "OmniTek Incorporated",
+  "Bachman & Associates",
+  "Clarke Incorporated",
+  "Fulcrum Secret Technologies",
 ];
 
 // ── City Faction → City Name mapping ──────────────────────────────────────
