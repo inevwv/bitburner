@@ -1,131 +1,108 @@
-/** faction-work.js
- * Grinds faction rep in priority order from auto-built bucket.
- * Prompts at startup with recommended bucket — confirm or reorder.
- * Waits for factions you haven't joined yet rather than skipping them.
+/** faction-buy.js
+ * Run manually when ready to prestige.
+ * Builds a globally sorted aug buy queue across all joined factions and
+ * executes it in order to minimize the price multiplier impact.
  *
- * Work type: hacking → security fallback
- * Run alongside faction-join.js. When done, run faction-buy.js to purchase.
+ * Buy order:
+ *   1. Priority augs (program-granting, debuff-removing) — cheapest rep first
+ *   2. Regular augs grouped by preset stat category, sorted by rep efficiency
  *
- * RAM: ~8GB
+ * Prompts for stat preset at startup (auto-recommended from BN multipliers).
+ * RAM: ~7GB
  */
 
-import { FACTION_BLOCKLIST } from "faction-config.js";
-import { buildBucket, getUnownedAugs, fmt } from "faction-utils.js";
-
-const WORK_TYPES = ["hacking", "security"];
+import {
+  PRIORITY_AUGS,
+  PRESETS,
+} from "faction-config.js";
+import {
+  collectPurchasableAugs,
+  buildRegularQueue,
+  recommendPreset,
+  fmt,
+} from "faction-utils.js";
 
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.print("=== faction-work.js started ===");
+  ns.print("=== faction-buy.js started ===");
 
-  // ── Build and confirm bucket ───────────────────────────────────────────
-  const recommended = buildBucket(ns);
+  // ── Step 1: Recommend and confirm preset ──────────────────────────────
+  const recommended = recommendPreset(ns);
+  const preset = await ns.prompt(
+    `Recommended stat preset for this BN: ${recommended}\n\nConfirm or choose a different preset:`,
+    { type: "select", choices: Object.keys(PRESETS) }
+  ) || recommended;
+  ns.print(`Using preset: ${preset}`);
 
-  ns.print("Recommended bucket:");
-  recommended.forEach((f, i) => ns.print(`  ${i + 1}. ${f}`));
+  // ── Step 2: Build buy queue ────────────────────────────────────────────
+  const ownedAugs = new Set(ns.singularity.getOwnedAugmentations(true));
+  const joinedFactions = ns.getPlayer().factions;
 
+  // Collect all purchasable augs: {aug, faction, repReq, price, statValue}
+  const available = collectPurchasableAugs(ns, joinedFactions, ownedAugs);
+
+  if (available.length === 0) {
+    ns.tprint("No augs available to purchase. Exiting.");
+    return;
+  }
+
+  // Split into priority and regular
+  const priorityQueue = available
+    .filter(a => PRIORITY_AUGS.includes(a.aug))
+    .sort((a, b) => a.repReq - b.repReq); // cheapest rep first
+
+  const regularQueue = buildRegularQueue(ns, available.filter(a => !PRIORITY_AUGS.includes(a.aug)), preset);
+
+  const fullQueue = [...priorityQueue, ...regularQueue];
+
+  // ── Step 3: Preview queue ──────────────────────────────────────────────
+  ns.tprint("=== Aug Buy Queue ===");
+  let multiplier = 1;
+  for (const entry of fullQueue) {
+    const adjustedPrice = entry.price * multiplier;
+    ns.tprint(`  [${entry.faction}] ${entry.aug} — ${ns.format.number(adjustedPrice, 2)} (rep: ${ns.format.number(entry.repReq, 2)})`);
+    multiplier *= 1.9; // each aug increases price by 90%
+  }
+  ns.tprint(`Total augs to buy: ${fullQueue.length}`);
+
+  // ── Step 4: Confirm ────────────────────────────────────────────────────
   const confirm = await ns.prompt(
-    `Recommended faction work order:\n${recommended.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\nProceed with this order?`,
+    `Buy ${fullQueue.length} augmentations in the order shown in the log?\n` +
+    `Priority augs: ${priorityQueue.length} | Regular augs: ${regularQueue.length}`,
     { type: "boolean" }
   );
 
-  const bucket = confirm ? recommended : await chooseBucket(ns, recommended);
-  ns.print(`Bucket confirmed: ${bucket.join(", ")}`);
+  if (!confirm) {
+    ns.tprint("Purchase cancelled.");
+    return;
+  }
 
-  // ── Main work loop ─────────────────────────────────────────────────────
-  while (true) {
-    const ownedAugs      = new Set(ns.singularity.getOwnedAugmentations(true));
-    const joinedFactions = ns.getPlayer().factions;
+  // ── Step 5: Execute buy queue ──────────────────────────────────────────
+  let bought = 0;
+  let failed = 0;
 
-    // Bucket factions first, then any other joined factions with unowned augs
-    const otherFactions = joinedFactions.filter(f =>
-      !bucket.includes(f) &&
-      !FACTION_BLOCKLIST.includes(f) &&
-      getUnownedAugs(ns, f, ownedAugs).length > 0
-    );
-
-    const workQueue = [...bucket, ...otherFactions];
-    let anyWorkDone = false;
-
-    for (const faction of workQueue) {
-      const unowned = getUnownedAugs(ns, faction, ownedAugs);
-      if (unowned.length === 0) {
-        ns.print(`✓ ${faction}: no unowned augs, skipping.`);
-        continue;
-      }
-
-      // Wait for faction join if not yet a member
-      if (!joinedFactions.includes(faction)) {
-        ns.print(`⏳ ${faction}: not yet joined, waiting...`);
-        anyWorkDone = true; // keep looping
-        continue;
-      }
-
-      const targetRep  = Math.max(...unowned.map(a => ns.singularity.getAugmentationRepReq(a)));
-      const currentRep = ns.singularity.getFactionRep(faction);
-
-      if (currentRep >= targetRep) {
-        ns.print(`✓ ${faction}: rep sufficient (${fmt(ns, currentRep)} / ${fmt(ns, targetRep)})`);
-        continue;
-      }
-
-      ns.print(`Working ${faction}: ${fmt(ns, currentRep)} / ${fmt(ns, targetRep)} rep needed`);
-      anyWorkDone = true;
-
-      if (!startWork(ns, faction)) {
-        ns.print(`✗ Could not start work for ${faction}, skipping.`);
-        continue;
-      }
-
-      while (true) {
-        await ns.sleep(10_000);
-
-        // Re-fetch joined factions in case something changed
-        const currentJoined = ns.getPlayer().factions;
-        if (!currentJoined.includes(faction)) break; // lost faction somehow
-
-        const rep    = ns.singularity.getFactionRep(faction);
-        const target = Math.max(
-          ...getUnownedAugs(ns, faction, new Set(ns.singularity.getOwnedAugmentations(true)))
-            .map(a => ns.singularity.getAugmentationRepReq(a))
-        );
-        const pct = Math.min(100, Math.floor((rep / target) * 100));
-        ns.print(`  ${faction}: ${fmt(ns, rep)} / ${fmt(ns, target)} (${pct}%)`);
-
-        if (rep >= target) {
-          ns.singularity.stopAction();
-          ns.print(`✓ ${faction}: target rep reached!`);
-          ns.toast(`${faction} rep complete!`, "success", 4000);
-          break;
-        }
-      }
+  for (const entry of fullQueue) {
+    // Re-check ownership in case something changed
+    if (ns.singularity.getOwnedAugmentations(true).includes(entry.aug)) {
+      ns.print(`Skipping ${entry.aug} — already owned.`);
+      continue;
     }
 
-    if (!anyWorkDone) {
-      ns.print("All factions at target rep. Run faction-buy.js when ready to prestige.");
-      ns.toast("All faction rep targets met! Ready for faction-buy.js", "success", 8000);
+    const success = ns.singularity.purchaseAugmentation(entry.faction, entry.aug);
+    if (success) {
+      bought++;
+      ns.print(`✓ Bought ${entry.aug} from ${entry.faction}`);
+    } else {
+      failed++;
+      ns.print(`✗ Failed to buy ${entry.aug} from ${entry.faction} — insufficient rep or funds?`);
     }
-
-    await ns.sleep(30_000);
   }
-}
 
-/** Fallback: let user pick order from the recommended list */
-async function chooseBucket(ns, recommended) {
-  // For now just reverse as a simple alternative — full reordering via prompt
-  // is limited by ns.prompt's select type. User can edit config if needed.
-  const choice = await ns.prompt(
-    "Choose an alternative order:",
-    { type: "select", choices: ["Reverse order", "Keep recommended"] }
-  );
-  return choice === "Reverse order" ? [...recommended].reverse() : recommended;
-}
-
-/** Try hacking work first, fall back to security */
-function startWork(ns, faction) {
-  for (const type of WORK_TYPES) {
-    if (ns.singularity.workForFaction(faction, type, false)) return true;
+  ns.tprint(`=== Purchase complete: ${bought} bought, ${failed} failed ===`);
+  if (failed === 0) {
+    ns.toast("All augs purchased! Ready to prestige.", "success", 10_000);
+  } else {
+    ns.toast(`${bought} augs bought, ${failed} failed. Check logs.`, "warning", 10_000);
   }
-  return false;
 }
