@@ -48,7 +48,11 @@ export async function main(ns) {
   }
 
   // ── Build buy queue (same logic as faction-buy.js) ────────────────────
-  const preset = recommendPreset(ns);
+  const recommended = recommendPreset(ns);
+  const preset = await ns.prompt(
+    `Recommended stat preset: ${recommended}\n\nConfirm or choose a different preset:`,
+    { type: "select", choices: Object.keys(PRESETS) }
+  ) || recommended;
 
   const priorityQueue = available
     .filter(e => PRIORITY_AUGS.includes(e.aug))
