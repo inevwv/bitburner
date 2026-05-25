@@ -8,7 +8,6 @@
  */
 
 import {
-  FACTION_BUCKET,
   FACTION_BLOCKLIST,
   CITY_CONFLICT_GROUPS,
   CITY_FACTION_LOCATIONS,
@@ -16,6 +15,7 @@ import {
   PRIORITY_AUGS,
   STAT_CATEGORIES,
 } from "faction-config.js";
+import { buildBucket } from "faction-utils.js";
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -40,13 +40,24 @@ export async function main(ns) {
     }
   }
 
+  // Build bucket once at startup — refreshed every 5 min in the loop
+  let bucket = buildBucket(ns);
+  let lastBucketBuild = Date.now();
+  const BUCKET_REFRESH_MS = 5 * 60 * 1000;
+
   while (true) {
+    // Refresh bucket periodically
+    if (Date.now() - lastBucketBuild > BUCKET_REFRESH_MS) {
+      bucket = buildBucket(ns);
+      lastBucketBuild = Date.now();
+    }
+
     const invitations = ns.singularity.checkFactionInvitations();
     const currentFactions = ns.getPlayer().factions;
     const ownedAugs = new Set(ns.singularity.getOwnedAugmentations(true));
 
     // ── Travel to bucket city factions ────────────────────────────────
-    for (const faction of FACTION_BUCKET) {
+    for (const faction of bucket) {
       if (!(faction in CITY_FACTION_LOCATIONS)) continue;        // not a city faction
       if (currentFactions.includes(faction)) continue;           // already joined
       if (FACTION_BLOCKLIST.includes(faction)) continue;         // blocked
@@ -111,14 +122,14 @@ export async function main(ns) {
         const needsProgramAugs = PROGRAM_FACTIONS.includes(faction) &&
           getUniqueAugs(ns, faction, ownedAugs).some(a => PRIORITY_AUGS.includes(a));
 
-        const bucketIdx = FACTION_BUCKET.indexOf(faction);
+        const bucketIdx = bucket.indexOf(faction);
         const inBucket = bucketIdx !== -1;
 
         // Score all city factions in this group that are also invited
         const groupCandidates = CITY_CONFLICT_GROUPS[groupIdx]
           .filter(f => invitations.includes(f) || currentFactions.includes(f));
 
-        const bestInGroup = scoreBest(ns, groupCandidates, ownedAugs, FACTION_BUCKET, PRIORITY_AUGS);
+        const bestInGroup = scoreBest(ns, groupCandidates, ownedAugs, bucket, PRIORITY_AUGS);
 
         if (bestInGroup !== faction) {
           ns.print(`Skipping ${faction} — ${bestInGroup} scores higher in same city group`);
@@ -143,7 +154,7 @@ export async function main(ns) {
       }
 
       // Join if it's in our bucket OR has unowned augs worth having
-      const inBucket = FACTION_BUCKET.includes(faction);
+      const inBucket = bucket.includes(faction);
       const unownedAugs = getAllUnownedAugs(ns, faction, ownedAugs);
 
       if (inBucket || unownedAugs.length > 0) {
