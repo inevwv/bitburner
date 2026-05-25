@@ -8,7 +8,8 @@
  * RAM: ~3GB
  */
 
-import { FACTION_BUCKET, PRIORITY_AUGS } from "faction-config.js";
+import { PRIORITY_AUGS } from "faction-config.js";
+import { getUnownedAugs, buildBucket } from "faction-utils.js";
 
 const TOGGLE_KEY = "F2";
 const UPDATE_INTERVAL = 5_000; // ms
@@ -56,18 +57,29 @@ export async function main(ns) {
     document.removeEventListener("keydown", onKey);
   });
 
+  // Cache bucket — rebuild every 5 minutes since it's expensive
+  let bucket = buildBucket(ns);
+  let lastBucketBuild = Date.now();
+  const BUCKET_REFRESH_MS = 5 * 60 * 1000;
+
   // ── Main update loop ─────────────────────────────────────────────────
   while (true) {
     const theme = ns.ui.getTheme();
     applyTheme(hud, theme);
 
+    // Refresh bucket periodically
+    if (Date.now() - lastBucketBuild > BUCKET_REFRESH_MS) {
+      bucket = buildBucket(ns);
+      lastBucketBuild = Date.now();
+    }
+
     const ownedAugs = new Set(ns.singularity.getOwnedAugmentations(true));
     const joinedFactions = ns.getPlayer().factions;
 
-    // Build display list: bucket factions first, then others with unowned augs
-    const bucketFactions = FACTION_BUCKET.filter(f => joinedFactions.includes(f));
+    // Build display list: bucket factions first (joined only), then others with unowned augs
+    const bucketFactions = bucket.filter(f => joinedFactions.includes(f));
     const otherFactions  = joinedFactions.filter(f =>
-      !FACTION_BUCKET.includes(f) &&
+      !bucket.includes(f) &&
       getUnownedAugs(ns, f, ownedAugs).length > 0
     );
     const displayFactions = [...bucketFactions, ...otherFactions];
@@ -117,15 +129,17 @@ export async function main(ns) {
 
       if (!done) allDone = false;
 
-      const priorityCount = unowned.filter(a => PRIORITY_AUGS.includes(a)).length;
-      const regularCount  = unowned.length - priorityCount;
+      // Only count augs we have enough rep for
+      const unlocked = unowned.filter(a => currentRep >= ns.singularity.getAugmentationRepReq(a));
+      const priorityCount = unlocked.filter(a => PRIORITY_AUGS.includes(a)).length;
+      const regularCount  = unlocked.length - priorityCount;
 
       const augLabel = [
         priorityCount > 0 ? `${priorityCount}★` : "",
         regularCount  > 0 ? `${regularCount}` : "",
       ].filter(Boolean).join(" + ");
 
-      const inBucket = FACTION_BUCKET.includes(faction);
+      const inBucket = bucket.includes(faction);
       const factionColor = done ? theme.success : (inBucket ? theme.primary : theme.secondary);
       const statusIcon = done ? "✓" : "·";
 
@@ -198,20 +212,19 @@ function hexToRgba(hex, alpha) {
 
 /** Calculate total cost of all purchasable unowned augs with price multiplier stacking */
 function calcTotalAugCost(ns, factions, ownedAugs) {
-  // Collect all unowned augs across factions, deduped
   const seen = new Set();
   const prices = [];
 
   for (const faction of factions) {
+    const currentRep = ns.singularity.getFactionRep(faction);
     for (const aug of getUnownedAugs(ns, faction, ownedAugs)) {
-      if (!seen.has(aug)) {
+      if (!seen.has(aug) && currentRep >= ns.singularity.getAugmentationRepReq(aug)) {
         seen.add(aug);
         prices.push(ns.singularity.getAugmentationPrice(aug));
       }
     }
   }
 
-  // Sort cheapest first (mirrors buy queue logic) and stack the 1.9x multiplier
   prices.sort((a, b) => a - b);
   let total = 0;
   let multiplier = 1;
