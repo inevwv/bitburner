@@ -9,6 +9,7 @@
 
 import {
   FACTION_BUCKET,
+  FACTION_BLOCKLIST,
   CITY_CONFLICT_GROUPS,
   PROGRAM_FACTIONS,
   PRIORITY_AUGS,
@@ -46,7 +47,11 @@ export async function main(ns) {
     for (const faction of invitations) {
       if (currentFactions.includes(faction)) continue;
 
-      // ── City faction conflict check ──────────────────────────────────
+      // ── Blocklist check ──────────────────────────────────────────────
+      if (FACTION_BLOCKLIST.includes(faction)) {
+        ns.print(`Skipping ${faction} — on blocklist.`);
+        continue;
+      }
       if (allCityFactions.has(faction)) {
         const groupIdx = CITY_CONFLICT_GROUPS.findIndex(g => g.includes(faction));
 
