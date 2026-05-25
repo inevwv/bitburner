@@ -32,7 +32,17 @@ export const CITY_CONFLICT_GROUPS = [
   ["Volhaven"],                                    // Volhaven excludes all other cities
 ];
 
-// Factions that give program-granting augs — always preferred over city rivals
+// ── Faction Blocklist ──────────────────────────────────────────────────────
+// Factions to never join — either cleared out or not relevant this run.
+// Update each reset based on what you've already swept.
+export const FACTION_BLOCKLIST = [
+  "Sector-12",   // cleared run 1
+  "Aevum",       // cleared run 1
+  "Tian Di Hui", // cleared run 1
+  "Tetrads",     // cleared run 1
+  "Slum Snakes", // cleared run 1
+  "The Black Hand", // cleared run 1
+];
 // until you own all their unique program augs.
 export const PROGRAM_FACTIONS = ["BitRunners"];
 
